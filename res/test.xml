@@ -1,0 +1,3 @@
+<hello attrib="attrib" second="attribute 1234">
+    <test id="test">inner</test>
+</hello>
