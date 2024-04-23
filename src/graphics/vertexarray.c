@@ -3,10 +3,11 @@
 boolean vertexarray_initialise(VertexArray* vertex_array) {
     GL_CALL(glGenVertexArrays(1, &vertex_array->handle));
     GL_CALL(glBindVertexArray(vertex_array->handle));
+    vertex_array->vertex_buffer_count = 0;
     return true;
 }
 
-boolean vertexarray_addbufferf(VertexArray* vertex_array, float* values, u32 length, u32 usage, u32 element_size) {
+boolean vertexarray_addbufferf(VertexArray* vertex_array, float* values, u32 length, u32 usage, u32 element_size, u32 byte_stride) {
     if (!vertex_array || vertex_array->vertex_buffer_count >= VERTEX_ARRAY_BUFFER_CAPACITY) {
         return false;
     }
@@ -16,13 +17,15 @@ boolean vertexarray_addbufferf(VertexArray* vertex_array, float* values, u32 len
     VertexBuffer* vertex_buffer = vertex_array->vertex_buffers + vertex_array->vertex_buffer_count;
     vertex_buffer->element_size = element_size;
     vertex_buffer->usage = usage;
+    vertex_buffer->type = GL_FLOAT;
 
     GL_CALL(glGenBuffers(1, &vertex_buffer->handle));
     GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, vertex_buffer->handle));
     GL_CALL(glBufferData(GL_ARRAY_BUFFER, sizeof(float) * length, values, usage));
 
-    GL_CALL(glVertexAttribPointer(vertex_array->vertex_buffer_count, element_size, GL_FLOAT, GL_FALSE, element_size * sizeof(float), (void*)0));
+    GL_CALL(glVertexAttribPointer(vertex_array->vertex_buffer_count, element_size, GL_FLOAT, GL_FALSE, byte_stride, (void*)0));
     GL_CALL(glEnableVertexAttribArray(vertex_array->vertex_buffer_count));
+    GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, 0));
 
     vertex_array->vertex_buffer_count++;
 
@@ -31,6 +34,18 @@ boolean vertexarray_addbufferf(VertexArray* vertex_array, float* values, u32 len
 
 boolean vertexarray_addbufferi(VertexArray* vertex_array, int* values, u32 length, u32 usage, u32 element_size);
 
+
+boolean vertexarray_buffersubdata_f(VertexArray* vertex_array, u32 buffer_index, float* data, u32 length) {
+    if (buffer_index >= VERTEX_ARRAY_BUFFER_CAPACITY) {
+        return false;
+    }
+
+    VertexBuffer* vbo = vertex_array->vertex_buffers + buffer_index;
+    GL_CALL(glBindBuffer(GL_ARRAY_BUFFER, vbo->handle));
+    GL_CALL(glBufferSubData(GL_ARRAY_BUFFER, 0, sizeof(f32) * length, data));
+
+    return true;
+}
 
 void vertexarray_bind(VertexArray* vertex_array) {
     GL_CALL(glBindVertexArray(vertex_array->handle));

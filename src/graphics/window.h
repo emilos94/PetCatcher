@@ -8,16 +8,12 @@
 #include "core/input_internal.h"
 #include "GLFW/glfw3.h"
 
-struct Window {
-    GLFWwindow* handle;
-    u32 width;
-    u32 height;    
-};
-typedef struct Window Window;
+boolean window_init(u32 width, u32 height, char* title);
+boolean window_should_exit(void);
+boolean window_destroy(void);
+void window_swapandpoll(void);
 
-boolean window_init(Window* window, u32 width, u32 height);
-boolean window_should_exit(Window* window);
-boolean window_destroy(Window* window);
-void window_swapandpoll(Window* window);
+f32 window_width(void);
+f32 window_height(void);
 
 #endif

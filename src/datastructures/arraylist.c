@@ -11,13 +11,19 @@ void* arraylist_push(ArrayList* list) {
     if (list->element_count >= list->element_capacity) {
         // resize
         // todo: might mess up pointer locations if referenced outside of list
-        realloc(list->data, list->element_byte_size * list->element_capacity * 2);
+        list->data = realloc(list->data, list->element_byte_size * list->element_capacity * 2);
         list->element_capacity *= 2;
     }
 
     void* ptr = list->data + list->element_count * list->element_byte_size;
     list->element_count++;
     return ptr;
+}
+
+void* arraylist_at(ArrayList* list, u32 index) {
+    assert(index < list->element_count);
+
+    return list->data + index * list->element_byte_size;
 }
 
 void arraylist_remove(ArrayList* list, u32 index) {

@@ -2,75 +2,73 @@
 #include "graphics/window.h"
 #include "graphics/shaderprogram.h"
 #include "graphics/vertexarray.h"
+#include "graphics/render_pipe.h"
+#include "graphics/texture.h"
 #include "core/input.h"
 #include "cglm/cglm.h"
+#include "cglm/struct.h"
 #include "core/file_loader.h"
+#include "game.h"
 
 int main(void) {
+    input_init();
 
-    Window window;
-    window_init(&window, 1280, 720);
-    boolean running = true;
-
-    ShaderProgram shader;
-    if (!shader_initialise(&shader, "shaders/vert.txt", "shaders/frag.txt")) {
+    if (!window_init(1280, 720, "Pet catcher")) {
         printf("[ERROR] failed to initialise shader");
         return 0;
     }
 
-    mat4 m;
+    boolean running = true;
 
-    VertexArray vertex_array;
-    vertexarray_initialise(&vertex_array);
-
-    float positions[18] = {
-        -0.5, 0.5, 0.0,
-        0.5, 0.5, 0.0,
-        0.5, -0.5, 0.0,
-        0.5, -0.5, 0.0,
-        -0.5, -0.5, 0.0,
-        -0.5, 0.5, 0.0
-    };
-
-    XmlNode test = {};
-    if (file_loadxml(&test, "../res/test.xml")) {
-        printf("Loaded xml file!\nTag: %s\n", test.tag.chars);
-        printf("Attributes:\n");
-        {
-            ArrayList* list = &test.attributes;
-            ARRAYLIST_FOREACH(list, XmlAttribute, attribute) {
-                printf("Attribute: %s -> %s\n", attribute->key.chars, attribute->value.chars);
-            }
-        }
-
-        {
-            ArrayList* children = &test.children;
-            ARRAYLIST_FOREACH(children, XmlNode, node) {
-                printf("%s, %s\n", node->tag.chars, node->inner_text.chars);
-            }
-        }
-
-        xmlnode_free(&test);
+    RenderState render_state;
+    if (!renderstate_init(&render_state)) {
+        return 0;
     }
 
-    vertexarray_addbufferf(&vertex_array, &positions[0], 18, GL_STATIC_DRAW, 3);
+    ColladaData test = {};
+    if (!file_loadcollada(&test, "../res/cube.dae")) {
 
-    while (running && !window_should_exit(&window)) {
+        printf("Failed to load collada file!\n");
+        return 0;
+    }
+
+    // :lighting
+    vec3 light_color = {0.9, 0.9, 0.9};
+    f32 ambient_strength = 0.4;
+
+    Texture texture;
+    texture_init(&texture, "../res/textures/apollo-8x.png");
+
+    u32 texture_index = 0;
+
+    while (running && !window_should_exit()) {
+        // input
         if (input_keydown(GLFW_KEY_ESCAPE)) {
             running = false;
         }
 
-        shader_bind(shader);
-        vertexarray_bind(&vertex_array);
+        // update
 
-        GL_CALL(glDrawArrays(GL_TRIANGLES, 0, 6));
+
+        // render
+        shader_bind(render_state.shader);
+        texture_bind(&texture);
+        for (int i = 0; i < test.mesh_count; i++) {
+            renderpipe_render_mesh(&render_state.render_pipe, render_state.shader, test.meshes + i);  
+        }
+        renderpipe_flush(&render_state.render_pipe, render_state.shader);
         
-        window_swapandpoll(&window);
+        input_endframe();
+        window_swapandpoll();
+        GL_CALL(glClear(GL_COLOR_BUFFER_BIT));
     }
 
-    shader_destroy(shader);
-    vertexarray_destroy(&vertex_array);
-    window_destroy(&window);
+    // :cleanup
+    shader_destroy(render_state.shader);
+    renderpipe_destroy(&render_state.render_pipe);
+    colladadata_free(&test);
+    texture_destroy(&texture);
+    window_destroy();
     
     return 0;
 }

@@ -44,3 +44,23 @@ void shader_bind(ShaderProgram shader_program) {
 void shader_destroy(ShaderProgram shader_program) {
     GL_CALL(glDeleteProgram(shader_program));
 }
+
+int shader_uniform_location(ShaderProgram shader_program, char* name) {
+    return glGetUniformLocation(shader_program, name);
+}
+
+void shader_uniform_mat4(int location, mat4 mat) {
+    GL_CALL(glUniformMatrix4fv(location, 1, GL_FALSE, mat[0]));
+}
+
+void shader_uniform_vec3(int location, vec3 vec) {
+    GL_CALL(glUniform3fv(location, 1, vec));
+}
+
+void shader_uniform_f32(int location, f32 value) {
+    GL_CALL(glUniform1f(location, value));
+}
+
+void shader_uniform_bool(int location, boolean value) {
+    GL_CALL(glUniform1f(location, value ? 1.0 : 0.0));
+}

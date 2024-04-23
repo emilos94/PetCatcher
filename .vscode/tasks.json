@@ -18,12 +18,13 @@
                 "-o",
                 "${workspaceFolder}\\build\\main.exe",
                 "-L${workspaceFolder}\\dependencies\\lib",
-                "${workspaceFolder}\\dependencies\\lib\\glfw3.dll",
                 "${workspaceFolder}\\dependencies\\lib\\cglm.lib",
+                "-lglfw3",
                 "-lopengl32",
                 "-lkernel32",
                 "-lgdi32",
                 "-luser32",
+                "-l:cglm.lib",
             ],
             "options": {
                 "cwd": "${fileDirname}"
