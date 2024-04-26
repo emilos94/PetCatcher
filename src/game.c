@@ -50,3 +50,121 @@ boolean renderstate_init(RenderState* render_state) {
     
     return true;
 }
+
+
+boolean gamestate_init(GameState* game_state) {
+    game_state->camera_position[0] = 0.0;
+    game_state->camera_position[1] = 0.0;
+    game_state->camera_position[2] = 0.0;
+
+    game_state->camera_front[0] = 0.0;
+    game_state->camera_front[1] = 0.0;
+    game_state->camera_front[2] = -1.0;
+    
+    game_state->camera_up[0] = 0.0;
+    game_state->camera_up[1] = 1.0;
+    game_state->camera_up[2] = 0.0;
+
+    game_state->camera_panning_speed = 10.0;
+    game_state->camera_movement_speed = 10.0;
+    game_state->camera_pan_sensitivity = 0.2;
+    game_state->camera_yaw = -90.0;
+    game_state->camera_pitch = 0.0;
+
+    game_state->print_timer = 0.0;
+
+    return true;
+}
+
+void camera_input(GameState* game_state, RenderState* render_state, f32 delta) {
+    game_state->print_timer += delta;
+
+    // camera panning (look around)
+    { 
+        game_state->camera_yaw += input_mouse_x_delta() * game_state->camera_pan_sensitivity;
+        game_state->camera_pitch += input_mouse_y_delta() * game_state->camera_pan_sensitivity;
+        if (game_state->print_timer >= 1.0) {
+            printf("camera: yaw %.2f pitch %.2f\n", game_state->camera_yaw, game_state->camera_pitch);
+        }
+
+        if (game_state->camera_pitch > 89.0) {
+            game_state->camera_pitch = 89.0;
+        }
+        if (game_state->camera_pitch < -89.0) {
+            game_state->camera_pitch = -89.0;
+        }
+
+        vec3 look_direction = GLM_VEC3_ZERO_INIT;
+        look_direction[0] = cos(glm_rad(game_state->camera_yaw)) * cos(glm_rad(game_state->camera_pitch));
+        look_direction[1] = sin(glm_rad(game_state->camera_pitch));
+        look_direction[2] = sin(glm_rad(game_state->camera_yaw)) * cos(glm_rad(game_state->camera_pitch));
+        glm_normalize(look_direction);
+        glm_vec3_copy(look_direction, game_state->camera_front);
+        
+        if (game_state->print_timer >= 1.0) {
+            printf("%.2f %.2f %.2f\n", look_direction[0], look_direction[1], look_direction[2]);
+        }
+
+        vec3 camera_right = GLM_VEC3_ZERO_INIT;
+        glm_vec3_cross(GLM_YUP, look_direction, camera_right);
+        glm_normalize(camera_right);
+
+        glm_vec3_cross(look_direction, camera_right, game_state->camera_up);
+        glm_normalize(game_state->camera_up);
+    }
+
+    { // Camera movement   
+        f32 movement_speed = game_state->camera_movement_speed * delta;
+        if (input_keydown(GLFW_KEY_W)) {
+            glm_vec3_muladds(
+                game_state->camera_front,
+                movement_speed,
+                game_state->camera_position
+            );
+        }
+        
+        if (input_keydown(GLFW_KEY_S)) {
+            glm_vec3_mulsubs(
+                game_state->camera_front,
+                movement_speed,
+                game_state->camera_position
+            );
+        }    
+
+        if (input_keydown(GLFW_KEY_A)) {
+            vec3 delta = GLM_VEC3_ZERO_INIT;
+            glm_vec3_cross(game_state->camera_front, GLM_YUP, delta);
+            glm_vec3_normalize(delta);
+
+            glm_vec3_mulsubs(
+                delta,
+                movement_speed,
+                game_state->camera_position
+            );
+        }  
+
+        if (input_keydown(GLFW_KEY_D)) {
+            vec3 delta = GLM_VEC3_ZERO_INIT;
+            glm_vec3_cross(game_state->camera_front, GLM_YUP, delta);
+            glm_vec3_normalize(delta);
+
+            glm_vec3_muladds(
+                delta,
+                movement_speed,
+                game_state->camera_position
+            );
+        }
+    }
+
+    vec3 lookat = GLM_VEC3_ZERO_INIT;
+    glm_vec3_add(game_state->camera_position, game_state->camera_front, lookat);
+
+    glm_mat4_identity(render_state->view_matrix);
+    glm_lookat(game_state->camera_position, lookat, game_state->camera_up, render_state->view_matrix);
+
+    shader_uniform_mat4(render_state->view_matrix_location, render_state->view_matrix);
+
+    if (game_state->print_timer >= 1.0) {
+        game_state->print_timer -= 1.0;
+    }
+}

@@ -25,6 +25,11 @@ int main(void) {
         return 0;
     }
 
+    GameState game_state;
+    if (!gamestate_init(&game_state)) {
+        return 0;
+    }
+
     ColladaData test = {};
     if (!file_loadcollada(&test, "../res/cube.dae")) {
 
@@ -41,18 +46,31 @@ int main(void) {
 
     u32 texture_index = 0;
 
+    f32 accumulator_time = 0.0, last_time = glfwGetTime(), seconds_per_frame = 1.0 / 60.0;
     while (running && !window_should_exit()) {
+        f32 current_time = glfwGetTime();
+        f32 elapsed_time = current_time - last_time;
+        accumulator_time += elapsed_time;
+        last_time = current_time;
+
         // input
         if (input_keydown(GLFW_KEY_ESCAPE)) {
             running = false;
         }
+        camera_input(&game_state, &render_state, elapsed_time);
 
         // update
+        if (accumulator_time > seconds_per_frame) {
+            accumulator_time -= seconds_per_frame;
 
+            
+
+        }
 
         // render
         shader_bind(render_state.shader);
         texture_bind(&texture);
+
         for (int i = 0; i < test.mesh_count; i++) {
             renderpipe_render_mesh(&render_state.render_pipe, render_state.shader, test.meshes + i);  
         }

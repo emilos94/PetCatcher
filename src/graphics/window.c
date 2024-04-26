@@ -34,6 +34,9 @@ boolean window_init(u32 width, u32 height, char* title) {
 
     glfwSetKeyCallback(window.handle, input_keycallback);
     glfwSetWindowSizeCallback(window.handle, window_size_callback);
+    glfwSetCursorPosCallback(window.handle, input_mousecallback);
+
+    glfwSetInputMode(window.handle, GLFW_CURSOR, GLFW_CURSOR_DISABLED);  
 
     return true;
 }
