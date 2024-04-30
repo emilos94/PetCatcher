@@ -300,11 +300,6 @@ boolean file_loadcollada(ColladaData* collada_data, char* path) {
 					mesh->positions[vertices_marker] = positions[positions_index];
 					mesh->positions[vertices_marker+1] = positions[positions_index+1];
 					mesh->positions[vertices_marker+2] = positions[positions_index+2];
-					
-					u32 normals_index = indices[i+1] * 3;
-					mesh->normals[vertices_marker] = normals[normals_index];
-					mesh->normals[vertices_marker+1] = normals[normals_index+1];
-					mesh->normals[vertices_marker+2] = normals[normals_index+2];
 
 					u32 uvs_index = indices[i+2] * 2;
 					mesh->uvs[uvs_marker] = uvs[uvs_index];
@@ -312,6 +307,49 @@ boolean file_loadcollada(ColladaData* collada_data, char* path) {
 
 					vertices_marker += 3;
 					uvs_marker += 2;
+				}
+
+				// calculate normals from positions
+				{
+					vec3 a = GLM_VEC3_ZERO_INIT, 
+						 b = GLM_VEC3_ZERO_INIT, 
+						 c = GLM_VEC3_ZERO_INIT, 
+						 ab = GLM_VEC3_ZERO_INIT, 
+						 ac = GLM_VEC3_ZERO_INIT, 
+						 normal = GLM_VEC3_ZERO_INIT;
+
+					for (int i = 0; i < mesh->position_count; i+=9) {
+						a[0] = mesh->positions[i];
+						a[1] = mesh->positions[i+1];
+						a[2] = mesh->positions[i+2];
+
+						b[0] = mesh->positions[i+3];
+						b[1] = mesh->positions[i+4];
+						b[2] = mesh->positions[i+5];
+
+						c[0] = mesh->positions[i+6];
+						c[1] = mesh->positions[i+7];
+						c[2] = mesh->positions[i+8];
+
+						glm_vec3_sub(a, b, ab);
+						glm_vec3_sub(a, c, ac);
+
+						glm_vec3_normalize(ab);
+						glm_vec3_normalize(ac);
+
+						glm_vec3_cross(ab, ac, normal);
+						glm_vec3_normalize(normal);
+
+						mesh->normals[i] = normal[0];
+						mesh->normals[i+1] = normal[1];
+						mesh->normals[i+2] = normal[2];
+						mesh->normals[i+3] = normal[0];
+						mesh->normals[i+4] = normal[1];
+						mesh->normals[i+5] = normal[2];
+						mesh->normals[i+6] = normal[0];
+						mesh->normals[i+7] = normal[1];
+						mesh->normals[i+8] = normal[2];
+					}
 				}
 
 				free(positions);

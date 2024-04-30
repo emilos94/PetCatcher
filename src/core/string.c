@@ -45,13 +45,16 @@ void string_tofloatarray(String str, float** out, char delimiter, u32 count) {
     char buffer[64];
     for (int i = 0; i < str.length; i++) {
         buffer[i - marker] = str.chars[i];
-        if (str.chars[i] == delimiter || i == str.length - 1) {
+        if (str.chars[i] == delimiter) {
             buffer[i - marker] = '\0';
             f32 value = (f32)atof(&buffer[0]);
             result[float_counter++] = value;
             marker = i+1;
         }					
     }
+    
+    buffer[str.length - marker] = '\0';
+    result[float_counter++] = (f32)atof(&buffer[0]);
     *out = result;
 }
 
@@ -62,11 +65,15 @@ void string_tointarray(String str, int** out, char delimiter, u32 count) {
     char buffer[64];
     for (int i = 0; i < str.length; i++) {
         buffer[i - marker] = str.chars[i];
-        if (str.chars[i] == delimiter || i == str.length - 1) {
+        if (str.chars[i] == delimiter) {
             buffer[i - marker] = '\0';
             result[int_counter++] = atoi(&buffer[0]);
             marker = i+1;
         }					
     }
+    
+    buffer[str.length - marker] = '\0';
+    result[int_counter++] = atoi(&buffer[0]);
+    
     *out = result;
 }

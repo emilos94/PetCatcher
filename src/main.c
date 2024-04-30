@@ -18,6 +18,9 @@ int main(void) {
         return 0;
     }
 
+    GL_CALL(glEnable(GL_CULL_FACE));
+    GL_CALL(glCullFace(GL_BACK));
+
     boolean running = true;
 
     RenderState render_state;
@@ -31,15 +34,11 @@ int main(void) {
     }
 
     ColladaData test = {};
-    if (!file_loadcollada(&test, "../res/cube.dae")) {
+    if (!file_loadcollada(&test, "../res/cube1.dae")) {
 
         printf("Failed to load collada file!\n");
         return 0;
     }
-
-    // :lighting
-    vec3 light_color = {0.9, 0.9, 0.9};
-    f32 ambient_strength = 0.4;
 
     Texture texture;
     texture_init(&texture, "../res/textures/apollo-8x.png");
@@ -63,7 +62,7 @@ int main(void) {
         if (accumulator_time > seconds_per_frame) {
             accumulator_time -= seconds_per_frame;
 
-            
+            game_state.print_timer += seconds_per_frame;
 
         }
 
@@ -72,7 +71,7 @@ int main(void) {
         texture_bind(&texture);
 
         for (int i = 0; i < test.mesh_count; i++) {
-            renderpipe_render_mesh(&render_state.render_pipe, render_state.shader, test.meshes + i);  
+            renderpipe_render_mesh(&render_state.render_pipe, render_state.shader, test.meshes + i);
         }
         renderpipe_flush(&render_state.render_pipe, render_state.shader);
         

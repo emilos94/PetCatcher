@@ -19,7 +19,17 @@ void input_keycallback(GLFWwindow* window, int key, int scancode, int action, in
         keys_just_down[key] = action == GLFW_PRESS;
     }
 
-    keys_down[key] = action == GLFW_PRESS;
+    switch (action)
+    {
+    case GLFW_PRESS:
+        keys_down[key] = true;
+        break;
+    case GLFW_RELEASE:
+        keys_down[key] = false;
+        break;
+    default:
+        break;
+    }
 }
 
 void input_mousecallback(GLFWwindow* window, double x, double y) {
