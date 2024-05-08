@@ -29,6 +29,7 @@ void xmlnode_initialise(XmlNode* xml_node);
 void xmlnode_free(XmlNode* xml_node);
 String* xmlnode_attribute(XmlNode* xml_node, char* key);
 XmlNode* xmlnode_childbytag(XmlNode* node, char* tag);
+u32 xmlnode_childcount_withtag(XmlNode* node, char* tag);
 XmlNode* xmlnode_nested_childbytag(XmlNode* node, char delimiter, char* path);
 
 boolean file_loadstring(String* result, char* path);
@@ -43,6 +44,10 @@ struct Mesh {
 
     f32* uvs;
     u32 uvs_count;
+
+    vec3 color;
+
+    f32* transform;
 };
 typedef struct Mesh Mesh;
 
@@ -54,6 +59,19 @@ struct ColladaData {
     u32 mesh_count;
 };
 typedef struct ColladaData ColladaData;
+
+struct MaterialEffect {
+    String material_name;
+    String effect_url;
+    vec3 color;
+};
+typedef struct MaterialEffect MaterialEffect;
+
+struct NodeScene {
+    String geometry_name;
+    f32* transform;
+};
+typedef struct NodeScene NodeScene;
 
 boolean file_loadcollada(ColladaData* collada_data, char* path);
 void colladadata_free(ColladaData* collada_data);

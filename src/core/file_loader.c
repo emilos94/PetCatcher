@@ -209,6 +209,16 @@ String* xmlnode_attribute(XmlNode* xml_node, char* key) {
 	return NULL;
 }
 
+u32 xmlnode_childcount_withtag(XmlNode* node, char* tag) {
+	u32 count = 0;
+	ARRAYLIST_FOREACH(node->children, XmlNode, child) {
+		if (string_equals_lit(child->tag, tag)) {
+			count ++;
+		}
+	}
+	return count;
+}
+
 void xmlnode_free(XmlNode* xml_node) {
 	{
 		ARRAYLIST_FOREACH(xml_node->attributes, XmlAttribute, attribute) {
@@ -240,9 +250,70 @@ boolean file_loadcollada(ColladaData* collada_data, char* path) {
 		return false;
 	}
 
-	{
+	MaterialEffect* material_effects;		
+	XmlNode* library_materials = xmlnode_nested_childbytag(&root, '.', "COLLADA.library_materials");
+	u32 materials_count = library_materials->children.element_count;
+	{ // material effects
+		material_effects = malloc(sizeof(MaterialEffect) * materials_count);
+		{ // Get name and url for materials
+			ARRAYLIST_FOREACHI(library_materials->children, idx, XmlNode, child) {
+				string_copy(&material_effects[idx].material_name, xmlnode_attribute(child, "id"));
+
+				XmlNode* effect_url_node = arraylist_at(&child->children, 0);
+				string_copy(&material_effects[idx].effect_url, xmlnode_attribute(effect_url_node, "url"));
+			}
+		}
+		{ // Get color for material
+			XmlNode* library_effects = xmlnode_nested_childbytag(&root, '.', "COLLADA.library_effects");
+			ARRAYLIST_FOREACHI(library_effects->children, idx, XmlNode, child) {
+				for(int i = 0; i < materials_count; i++) {
+					MaterialEffect* material = material_effects + i;
+					String* node_id = xmlnode_attribute(child, "id");
+					if (string_endswith_lit(material->effect_url, node_id->chars)) {
+						XmlNode* color_node = xmlnode_nested_childbytag(child, '.', "profile_COMMON.technique.lambert.diffuse.color");
+						f32* colors;
+						string_tofloatarray(color_node->inner_text, &colors, ' ', 4);
+						material->color[0] = colors[0];
+						material->color[1] = colors[1];
+						material->color[2] = colors[2];
+					}
+				}
+			}
+		}
+	}
+	NodeScene* node_scenes;
+	u32 node_count = 0;
+	{ // node scenes
+		XmlNode* visual_scene = xmlnode_nested_childbytag(&root, '.', "COLLADA.library_visual_scenes.visual_scene");
+		{
+			ARRAYLIST_FOREACH(visual_scene->children, XmlNode, node) {
+				u32 instance_geometry_count = xmlnode_childcount_withtag(node, "instance_geometry");
+				if (instance_geometry_count > 0) {
+					node_count++;
+				}
+			}
+		}
+
+		node_scenes = malloc(sizeof(NodeScene) * node_count);
+		int current_node = 0;
+		ARRAYLIST_FOREACH(visual_scene->children, XmlNode, node) {
+			u32 instance_geometry_count = xmlnode_childcount_withtag(node, "instance_geometry");
+			if (instance_geometry_count > 0) {
+				NodeScene* node_scene = node_scenes + current_node;
+				XmlNode* matrix_node = xmlnode_childbytag(node, "matrix");
+				string_tofloatarray(matrix_node->inner_text, &node_scene->transform, ' ', 16);
+				
+				XmlNode* instance_node = xmlnode_childbytag(node, "instance_geometry");
+				string_copy(&node_scene->geometry_name, xmlnode_attribute(instance_node, "name"));
+				current_node++;
+			}
+		}
+
+	}
+	{ // library geometries
 		XmlNode* library_geometries = xmlnode_nested_childbytag(&root, '.', "COLLADA.library_geometries");
 		{
+			collada_data->mesh_count = 0;
 			ARRAYLIST_FOREACH(library_geometries->children, XmlNode, child) {
 				if (string_equals_lit(child->tag, "geometry")) {
 					collada_data->mesh_count++;
@@ -294,6 +365,19 @@ boolean file_loadcollada(ColladaData* collada_data, char* path) {
 
 				mesh_init(mesh, triangle_count * 3);
 				
+				{
+					// set mesh transform
+					String* geometry_name = xmlnode_attribute(geometry_node, "name");
+					for (int i = 0; i < node_count; i++) {
+						NodeScene* node_scene = node_scenes + i;
+						if (string_equals(node_scene->geometry_name, *geometry_name)) {
+							for (int j = 0; j < 16; j++) {
+								mesh->transform[j] = node_scene->transform[j];
+							}
+						}
+					}
+				}
+
 				u32 vertices_marker = 0, uvs_marker = 0;
 				for(int i = 0; i < triangle_count*3*3; i+=3) {
 					u32 positions_index = indices[i] * 3;
@@ -352,6 +436,16 @@ boolean file_loadcollada(ColladaData* collada_data, char* path) {
 					}
 				}
 
+				{ // Set mesh material
+					String* material_name = xmlnode_attribute(triangles_node, "material");
+					for(int i = 0; i < materials_count; i++) {
+						MaterialEffect* material = material_effects + i;
+						if (string_equals(material->material_name, *material_name)) {
+							glm_vec3_copy(material->color, mesh->color);
+						}
+					}
+				}
+
 				free(positions);
 				free(normals);
 				free(uvs);
@@ -360,11 +454,12 @@ boolean file_loadcollada(ColladaData* collada_data, char* path) {
 				mesh_idx++;
 			}
 		}
+		free(material_effects);
+		free(node_scenes);
 	}
 
 	return true;
 }
-
 
 void mesh_init(Mesh* mesh, u32 vertex_count) {
 	mesh->position_count = vertex_count * 3;
@@ -375,12 +470,15 @@ void mesh_init(Mesh* mesh, u32 vertex_count) {
 	
 	mesh->uvs_count = vertex_count * 2;
 	mesh->uvs = malloc(sizeof(f32) * mesh->uvs_count);
+
+	mesh->transform = malloc(sizeof(f32) * 16);
 }
 
 void mesh_free(Mesh* mesh) {
 	free(mesh->positions);
 	free(mesh->normals);
 	free(mesh->uvs);
+	free(mesh->transform);
 }
 
 void colladadata_free(ColladaData* collada_data) {

@@ -61,6 +61,25 @@ void shader_uniform_f32(int location, f32 value) {
     GL_CALL(glUniform1f(location, value));
 }
 
+void shader_uniform_vec3n(int location, f32* values, u32 count) {
+    GL_CALL(glUniform3fv(location, count, values));
+}
+
+void shader_uniform_mat4n(int location, f32* values, u32 count) {
+    GL_CALL(glUniformMatrix4fv(location, count, GL_FALSE, values));
+}
+
 void shader_uniform_bool(int location, boolean value) {
     GL_CALL(glUniform1f(location, value ? 1.0 : 0.0));
 }
+
+void shader_uniform_booln(int location, boolean* values, u32 count) {
+    // note: this is kinda sketchy.. Think of better solution at some point
+    f32* fvalues = malloc(sizeof(f32) * count);
+    for (int i = 0; i < count; i++) {
+        fvalues[i] = values[i] ? 1.0 : 0.0;
+    }
+    GL_CALL(glUniform1fv(location, count, fvalues));
+    free(fvalues);
+}
+

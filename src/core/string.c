@@ -1,5 +1,10 @@
 #include "core/string.h"
 
+
+void string_copy(String* destination, String* source) {
+    string_copy_n(destination, source->chars, source->length);
+}
+
 void string_copy_n(String* destination, char* chars, u32 count) {
     destination->chars = malloc(count+1);
     destination->length = count;
@@ -35,6 +40,25 @@ boolean string_equals_lit(String left, char* chars) {
     return chars[left.length] == '\0';
 }
 
+boolean string_endswith_lit(String left, char* chars) {
+    if (!chars) {
+        return false;
+    }
+
+    u32 chars_length = strlen(chars);
+    if (chars_length > left.length) {
+        return false;
+    }
+    
+    int chars_marker = 0;
+    for (int i = left.length - chars_length; i < left.length; i++) {
+        if (left.chars[i] != chars[chars_marker++]) {
+            return false;
+        }
+    }
+
+    return true;
+}
 
 void string_tofloatarray(String str, float** out, char delimiter, u32 count) {
     assert(out != NULL);

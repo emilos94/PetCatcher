@@ -1,7 +1,7 @@
 #include "datastructures/arraylist.h"
 
 void arraylist_initialise(ArrayList* list, u32 capacity, u32 element_byte_size) {
-    list->data = malloc(capacity * element_byte_size);
+    list->data = calloc(capacity * element_byte_size, 1);
     list->element_byte_size = element_byte_size;
     list->element_capacity = capacity;
     list->element_count = 0;
@@ -12,6 +12,7 @@ void* arraylist_push(ArrayList* list) {
         // resize
         // todo: might mess up pointer locations if referenced outside of list
         list->data = realloc(list->data, list->element_byte_size * list->element_capacity * 2);
+        memset(list->data + list->element_capacity * list->element_byte_size, 0, list->element_capacity * list->element_byte_size);
         list->element_capacity *= 2;
     }
 

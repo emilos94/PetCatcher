@@ -3,17 +3,23 @@
 layout (location=0) in vec3 pos;
 layout (location=1) in vec3 normnal;
 layout (location=2) in vec2 uv;
+layout (location=3) in int index;
 
 out vec3 frag_position;
 out vec3 pass_normal;
 out vec2 pass_uv;
+flat out int pass_index;
 
 uniform mat4 projection_matrix;
 uniform mat4 view_matrix;
+uniform mat4 model_matrices[20];
 
 void main() {
-    frag_position = pos;
-    gl_Position = projection_matrix * view_matrix * vec4(pos, 1.0);
+    vec4 world_pos = model_matrices[index] * vec4(pos, 1.0);
+    frag_position = world_pos.xyz;
+    gl_Position = projection_matrix * view_matrix * world_pos;
+
     pass_normal = normnal;
     pass_uv = uv;
+    pass_index = index;
 }

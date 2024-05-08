@@ -62,6 +62,14 @@ void window_size_callback(GLFWwindow* window_handle, int width, int height) {
     glViewport(0, 0, width, height);
 }
 
+void window_enable_cursor(boolean enabled) {
+    if (enabled) {
+        glfwSetInputMode(window.handle, GLFW_CURSOR, GLFW_CURSOR_NORMAL);  
+    }
+    else {
+        glfwSetInputMode(window.handle, GLFW_CURSOR, GLFW_CURSOR_DISABLED);  
+    }
+}
 
 f32 window_width(void) {
     return window.width;

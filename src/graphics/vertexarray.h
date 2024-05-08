@@ -27,6 +27,7 @@ boolean vertexarray_addbufferf(VertexArray* vertex_array, float* values, u32 len
 boolean vertexarray_addbufferi(VertexArray* vertex_array, int* values, u32 length, u32 usage, u32 element_size);
 
 boolean vertexarray_buffersubdata_f(VertexArray* vertex_array, u32 buffer_index, float* data, u32 length);
+boolean vertexarray_buffersubdata_i(VertexArray* vertex_array, u32 buffer_index, int* data, u32 length);
 
 void vertexarray_bind(VertexArray* vertex_array);
 void vertexarray_destroy(VertexArray* vertex_array);
