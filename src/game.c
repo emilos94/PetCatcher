@@ -3,9 +3,12 @@
 static vec3 COLOR_GREEN = (vec3) { 0.2, 1.0, 0.2 };
 
 #define PLAYER_HEIGHT 2.0
+#define FRUIT_SPAWN_HEIGHT 10.0
 
-// forward declarations
+// :forward declarations
 boolean aabb_aabb_collision(Boundingbox* either, Boundingbox* other);
+void spawn_fruit(GameState* game_state, FruitType fruit_type, vec3 position);
+f32 random_ratio(void);
 
 boolean renderstate_init(RenderState* render_state) {
     if (!shader_initialise(&render_state->shader, "shaders/vert.txt", "shaders/frag.txt")) {
@@ -63,22 +66,30 @@ boolean gamestate_init(GameState* game_state) {
     arraylist_initialise(&game_state->entities, 100, sizeof(Entity));
 
     { // :player
-        game_state->player = arraylist_push(&game_state->entities);
-        game_state->player->position[0] = 0.0;
-        game_state->player->position[1] = PLAYER_HEIGHT;
-        game_state->player->position[2] = 2.0;
-        game_state->player->up_velocity = 0.0;
-        game_state->player->in_air = false;
-        game_state->player->jump_power = 27.0;
-        game_state->player->movement_speed = 10.0;
-        glm_vec3_copy(game_state->player->position, game_state->player->bounding_box.center);
-        game_state->player->bounding_box.center[1] -= PLAYER_HEIGHT  / 2.0;
-        glm_vec3_fill(game_state->player->bounding_box.half_size, 0.5);
-        game_state->player->flags = EntityFlag_Collider;
+        Entity* player = arraylist_push(&game_state->entities);
+        player->position[0] = 0.0;
+        player->position[1] = PLAYER_HEIGHT;
+        player->position[2] = 2.0;
+        player->y_velocity = 0.0;
+        player->in_air = false;
+        player->jump_power = 27.0;
+        player->mass = 1.0;
+        player->movement_speed = 10.0;
+        glm_vec3_copy(player->position, player->bounding_box.center);
+        player->bounding_box.center[1] -= PLAYER_HEIGHT  / 2.0;
+        glm_vec3_fill(player->bounding_box.half_size, PLAYER_HEIGHT / 2.0);
+        player->flags = EntityFlag_Collider | EntityFlag_RigidBody;
+        player->tag = EntityTag_Player;
+        player->list_index = game_state->entities.element_count - 1;
+        game_state->player = player;
     }
 
-    { // :entities
+    { // :assets
         if (!game_loadmap(game_state, "../res/maps/ground_cube.dae")) {
+            return false;
+        }
+
+        if (!file_loadcollada(&game_state->apple_data, "../res/meshes/apple.dae")) {
             return false;
         }
     }
@@ -101,8 +112,13 @@ boolean gamestate_init(GameState* game_state) {
     { // :constants
         game_state->gravity = 0.04;
         game_state->ground_height = 0.0;
-
+        game_state->score = 0;
         game_state->print_timer = 0.0;
+    }
+
+    { // :spawn fruit
+        game_state->fruit_spawn_timer = 0.0;
+        game_state->fruit_spawn_interval = 5.0;
     }
 
     return true;
@@ -119,6 +135,7 @@ boolean game_loadmap(GameState* game_state, char* path) {
         Entity* entity = arraylist_push(&game_state->entities);
 
         entity->mesh = mesh;
+        entity->mesh_count = 1;
         entity->position[0] = mesh->transform[3];
         entity->position[1] = mesh->transform[7];
         entity->position[2] = mesh->transform[11];
@@ -129,11 +146,17 @@ boolean game_loadmap(GameState* game_state, char* path) {
         glm_vec3_copy(entity->position, entity->bounding_box.center);
         glm_vec3_copy(entity->scale, entity->bounding_box.half_size);
         glm_vec3_scale(entity->bounding_box.half_size, 0.5, entity->bounding_box.half_size);
+        
+        if (string_equals_lit(mesh->name, "Ground")) {
+            game_state->ground_box = entity->bounding_box;
+            game_state->ground_height = entity->bounding_box.center[1] + entity->bounding_box.half_size[1];
+        }
 
         glm_vec3_fill(entity->rotation, 0.0);
         
         glm_vec3_copy(mesh->color, entity->color);
         entity->flags = EntityFlag_Render | EntityFlag_UseColor | EntityFlag_Collider;
+        entity->tag = EntityTag_Other;
     }
 
     return true;
@@ -216,17 +239,17 @@ void camera_input(GameState* game_state, RenderState* render_state, f32 delta) {
         if (input_keyjustdown(GLFW_KEY_SPACE) && !game_state->player->in_air) {
             game_state->player->in_air = true;
 
-            game_state->player->up_velocity = game_state->player->jump_power;
+            game_state->player->y_velocity = game_state->player->jump_power;
         }
 
         if (game_state->player->in_air) {
-            game_state->player->up_velocity -= game_state->gravity;
-            game_state->player->position[1] += game_state->player->up_velocity * delta;
+            game_state->player->y_velocity -= game_state->gravity;
+            game_state->player->position[1] += game_state->player->y_velocity * delta;
 
             if (game_state->player->position[1] - PLAYER_HEIGHT <= game_state->ground_height) {
                 game_state->player->position[1] = game_state->ground_height + PLAYER_HEIGHT;
                 game_state->player->in_air = false;
-                game_state->player->up_velocity = 0.0;
+                game_state->player->y_velocity = 0.0;
             }
         }
     }
@@ -239,6 +262,9 @@ void camera_input(GameState* game_state, RenderState* render_state, f32 delta) {
 
     shader_uniform_mat4(render_state->view_matrix_location, render_state->view_matrix);
 
+}
+
+void game_input(GameState* game_state) {
 }
 
 void game_update(GameState* game_state, f32 delta) {
@@ -255,12 +281,65 @@ void game_update(GameState* game_state, f32 delta) {
                 if (entity != _entity && 
                     _entity->flags & EntityFlag_Collider &&
                     aabb_aabb_collision(&entity->bounding_box, &_entity->bounding_box)) {
-                    printf("Collision!\n");
+
+                    if (entity->tag == EntityTag_Player && _entity->tag == EntityTag_Fruit) {
+                        _entity->queue_delete = true;
+                        game_state->score += _entity->points;
+                        printf("Caught fruit ! Score: %d\n", game_state->score);
+                    }
                 }
             }
         }
+
+        // :rigidbody
+        if (entity->flags & EntityFlag_RigidBody) {
+            if (entity->in_air) {
+                entity->y_velocity -= game_state->gravity * entity->mass;
+                entity->position[1] += entity->y_velocity * delta;
+            }
+
+            if (entity->flags & EntityFlag_Collider &&
+                entity->position[1] - entity->bounding_box.half_size[1] <= game_state->ground_height) {
+
+                entity->position[1] = game_state->ground_height + entity->bounding_box.half_size[1] * 2.0;
+                entity->in_air = false;
+                entity->y_velocity = 0.0;
+            }
+        }
+
+    }
+
+    ARRAYLIST_FOREACHI(game_state->entities, i, Entity, e) {
+        if (e->queue_delete) {
+            u32 list_index = e->list_index;
+            arraylist_remove(&game_state->entities, e->list_index);
+            // arraylist graps last element and replaces removed to keep it dense
+            // update list_index in entity replacing the removed
+            if (list_index != game_state->entities.element_count) {
+                Entity* old_last = arraylist_at(&game_state->entities, list_index);
+                old_last->list_index = list_index;
+            }
+            i--;
+        }
     }
     
+    // :spawn fruit
+    game_state->fruit_spawn_timer += delta; 
+    if (game_state->fruit_spawn_timer >= game_state->fruit_spawn_interval) {
+        f32 ratio_x = random_ratio();
+        f32 ratio_z = random_ratio();
+
+        f32 x_pos = game_state->ground_box.half_size[0] * 2.0 * ratio_x - game_state->ground_box.half_size[0];
+        f32 z_pos = game_state->ground_box.half_size[2] * 2.0 * ratio_z - game_state->ground_box.half_size[2];
+
+        spawn_fruit(game_state, FruitType_Apple, (vec3){x_pos, FRUIT_SPAWN_HEIGHT, z_pos});
+
+        game_state->fruit_spawn_timer -= game_state->fruit_spawn_interval;
+    }
+
+    // :timers
+    game_state->print_timer += delta;
+
     if (game_state->print_timer >= 1.0) {
         game_state->print_timer -= 1.0;
     }
@@ -286,62 +365,64 @@ boolean entity_render(RenderState* render_state, Entity* entity) {
     }
 
     RenderPipe* render_pipe = &render_state->render_pipe;
-    
-    Mesh* mesh = entity->mesh;
-    if (render_pipe->vertex_capacity < mesh->position_count / 3) {
-        return false;
-    }
-
-    u32 vertex_capacity_remaining = render_pipe->vertex_capacity - render_pipe->vertex_count;
-    if (vertex_capacity_remaining < mesh->position_count / 3 || render_pipe->entity_count >= render_pipe->entity_capacity) {
-        render_flush(render_state, render_state->shader);
-    }
-
-    { // fill vertex attributes
-        u32 vertex_offset = render_pipe->vertex_count * 3;
-        for (int i = 0; i < mesh->position_count; i++) {
-            render_pipe->mesh.positions[vertex_offset+i] = mesh->positions[i];
+    for (int i = 0; i < entity->mesh_count; i++) {
+        Mesh* mesh = entity->mesh + i;
+        if (render_pipe->vertex_capacity < mesh->position_count / 3) {
+            return false;
         }
 
-        for (int i = 0; i < mesh->normals_count; i++) {
-            render_pipe->mesh.normals[vertex_offset+i] = mesh->normals[i];
+        u32 vertex_capacity_remaining = render_pipe->vertex_capacity - render_pipe->vertex_count;
+        if (vertex_capacity_remaining < mesh->position_count / 3 || render_pipe->entity_count >= render_pipe->entity_capacity) {
+            render_flush(render_state, render_state->shader);
         }
 
-        u32 uvs_offset = render_pipe->vertex_count * 2;
-        for (int i = 0; i < mesh->uvs_count; i++) {
-            render_pipe->mesh.uvs[uvs_offset+i] = mesh->uvs[i];
+        { // fill vertex attributes
+            u32 vertex_offset = render_pipe->vertex_count * 3;
+            for (int i = 0; i < mesh->position_count; i++) {
+                render_pipe->mesh.positions[vertex_offset+i] = mesh->positions[i];
+            }
+
+            for (int i = 0; i < mesh->normals_count; i++) {
+                render_pipe->mesh.normals[vertex_offset+i] = mesh->normals[i];
+            }
+
+            u32 uvs_offset = render_pipe->vertex_count * 2;
+            for (int i = 0; i < mesh->uvs_count; i++) {
+                render_pipe->mesh.uvs[uvs_offset+i] = mesh->uvs[i];
+            }
         }
-    }
 
-    { // model matrix 
-        mat4 model_matrix = GLM_MAT4_IDENTITY_INIT;
-        glm_translate(model_matrix, entity->position);
-        glm_rotate_x(model_matrix, entity->rotation[0], model_matrix);
-        glm_rotate_y(model_matrix, entity->rotation[1], model_matrix);
-        glm_rotate_z(model_matrix, entity->rotation[2], model_matrix);
-        glm_scale(model_matrix, entity->scale);
+        { // model matrix 
+            mat4 model_matrix = GLM_MAT4_IDENTITY_INIT;
+            glm_translate(model_matrix, entity->position);
+            glm_rotate_x(model_matrix, entity->rotation[0], model_matrix);
+            glm_rotate_y(model_matrix, entity->rotation[1], model_matrix);
+            glm_rotate_z(model_matrix, entity->rotation[2], model_matrix);
+            glm_scale(model_matrix, entity->scale);
 
-        f32* model_matrix_values = (f32*)model_matrix;
-        for (int i = 0; i < 16; i++) {
-            render_pipe->model_matrices[render_pipe->entity_count * 16 + i] = model_matrix_values[i];
+            f32* model_matrix_values = (f32*)model_matrix;
+            for (int i = 0; i < 16; i++) {
+                render_pipe->model_matrices[render_pipe->entity_count * 16 + i] = model_matrix_values[i];
+            }
         }
+
+        if (entity->flags & EntityFlag_UseColor) {
+            render_pipe->colors[render_pipe->entity_count * 3] = mesh->color[0];
+            render_pipe->colors[render_pipe->entity_count * 3+1] = mesh->color[1];
+            render_pipe->colors[render_pipe->entity_count * 3+2] = mesh->color[2];
+            render_pipe->use_colors[render_pipe->entity_count] = true;
+        }
+
+        for (int i = 0; i < mesh->position_count / 3; i++) {
+            render_pipe->index_buffer[ render_pipe->vertex_count + i] = render_pipe->entity_count;
+        }
+
+        // todo: implement use_texture
+
+        render_state->render_pipe.vertex_count += mesh->position_count / 3;
+        render_state->render_pipe.entity_count++;
+        
     }
-
-    if (entity->flags & EntityFlag_UseColor) {
-        render_pipe->colors[render_pipe->entity_count * 3] = mesh->color[0];
-        render_pipe->colors[render_pipe->entity_count * 3+1] = mesh->color[1];
-        render_pipe->colors[render_pipe->entity_count * 3+2] = mesh->color[2];
-        render_pipe->use_colors[render_pipe->entity_count] = true;
-    }
-
-    for (int i = 0; i < mesh->position_count / 3; i++) {
-        render_pipe->index_buffer[ render_pipe->vertex_count + i] = render_pipe->entity_count;
-    }
-
-    // todo: implement use_texture
-
-    render_state->render_pipe.vertex_count += mesh->position_count / 3;
-    render_state->render_pipe.entity_count++;
     
     return true;
 }
@@ -391,6 +472,43 @@ boolean aabb_aabb_collision(Boundingbox* either, Boundingbox* other) {
         max_z0 >= min_z1;
 
     return result;
+}
+
+// :spawn
+void spawn_fruit(GameState* game_state, FruitType fruit_type, vec3 position) {
+        u32 index = game_state->entities.element_count;
+        Entity* fruit = arraylist_push(&game_state->entities);
+        fruit->list_index = index;
+        glm_vec3_copy(position, fruit->position);
+
+        switch (fruit_type)
+        {
+        case FruitType_Apple:
+            fruit->mesh = game_state->apple_data.meshes;
+            fruit->mesh_count = game_state->apple_data.mesh_count;
+            fruit->points = 5;
+            fruit->mass = 10.0;
+            glm_vec3_fill(fruit->scale, 0.3);
+            break;
+        
+        default:
+            break;
+        }
+
+        glm_vec3_fill(fruit->rotation, 0.0);
+        glm_vec3_copy(fruit->position, fruit->bounding_box.center);
+        glm_vec3_copy(fruit->scale, fruit->bounding_box.half_size);
+        glm_vec3_scale(fruit->bounding_box.half_size, 1.5, fruit->bounding_box.half_size);
+        
+        fruit->flags = EntityFlag_Render | EntityFlag_UseColor | EntityFlag_Collider | EntityFlag_RigidBody;
+        fruit->in_air = true;
+        fruit->y_velocity = 0.0;
+        fruit->tag = EntityTag_Fruit;
+}
+
+
+f32 random_ratio(void) {
+    return (float)rand() / (float)RAND_MAX;
 }
 
 /* // might come in handy todo

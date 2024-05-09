@@ -30,19 +30,26 @@ struct Player {
 };
 typedef struct Player Player;
 
-enum EntityType {
-    EntityType_Player,
-    EntityType_Static
+enum EntityTag {
+    EntityTag_Player,
+    EntityTag_Fruit,
+    EntityTag_Other
 };
-typedef enum EntityType EntityType;
+typedef enum EntityTag EntityTag;
 
 enum EntityFlags {
     EntityFlag_Render = 1 << 0,
     EntityFlag_UseColor = 1 << 1,
     EntityFlag_UseTexture = 1 << 2,
-    EntityFlag_Collider = 1 << 3
+    EntityFlag_Collider = 1 << 3,
+    EntityFlag_RigidBody = 1 << 4
 };
 typedef u32 EntityFlags;
+
+enum FruitType {
+    FruitType_Apple
+};
+typedef enum FruitType FruitType;
 
 struct Boundingbox {
     vec3 center;
@@ -52,17 +59,28 @@ typedef struct Boundingbox Boundingbox;
 
 struct Entity {
     vec3 position, rotation, scale;
-    EntityType type;
-    EntityFlags flags; 
+    EntityTag tag;
+    EntityFlags flags;
+    u32 list_index;
+    boolean queue_delete;
+
     Mesh* mesh;
+    u32 mesh_count;
 
     vec3 color;
 
-    // player
-    f32 jump_power, up_velocity, movement_speed;
+    // player data
+    f32 jump_power, movement_speed;
     
-    boolean in_air;
+    // rigid body
+    boolean in_air; 
+    f32 y_velocity, mass;
+
+    // collider
     Boundingbox bounding_box;
+
+    // fruit data
+    u32 points;
 };
 typedef struct Entity Entity;
 
@@ -71,20 +89,34 @@ struct GameState {
     vec3 camera_front, camera_up;
     f32 camera_panning_speed, camera_pan_sensitivity, camera_yaw, camera_pitch;
 
+    // entities
     ArrayList entities;
     Entity* player;
 
+    // world
     f32 ground_height, gravity;
 
-    f32 print_timer;
+    // game
+    u32 score;
 
+    // assets
     ColladaData map_data;
+    ColladaData apple_data;
+
+    Boundingbox ground_box;
+
+    // fruit spawning
+    f32 fruit_spawn_timer, fruit_spawn_interval;
+
+    // misc
+    f32 print_timer;
 };
 typedef struct GameState GameState;
 
 boolean renderstate_init(RenderState* render_state);
 boolean gamestate_init(GameState* game_state);
 
+void game_input(GameState* game_state);
 void game_update(GameState* game_state, f32 delta);
 void game_render(GameState* game_state, RenderState* render_state, f32 delta);
 boolean game_loadmap(GameState* game_state, char* path);

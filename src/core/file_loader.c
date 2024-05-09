@@ -368,6 +368,7 @@ boolean file_loadcollada(ColladaData* collada_data, char* path) {
 				{
 					// set mesh transform
 					String* geometry_name = xmlnode_attribute(geometry_node, "name");
+					string_copy(&mesh->name, geometry_name);
 					for (int i = 0; i < node_count; i++) {
 						NodeScene* node_scene = node_scenes + i;
 						if (string_equals(node_scene->geometry_name, *geometry_name)) {

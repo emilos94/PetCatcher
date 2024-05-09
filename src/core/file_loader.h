@@ -46,6 +46,7 @@ struct Mesh {
     u32 uvs_count;
 
     vec3 color;
+    String name;
 
     f32* transform;
 };

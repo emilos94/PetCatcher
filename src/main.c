@@ -20,6 +20,7 @@ int main(void) {
 
     GL_CALL(glEnable(GL_CULL_FACE));
     GL_CALL(glCullFace(GL_BACK));
+    GL_CALL(glEnable(GL_DEPTH_TEST));
 
     boolean running = true;
 
@@ -49,6 +50,7 @@ int main(void) {
             mouse_enabled = !mouse_enabled;
             window_enable_cursor(mouse_enabled);
         }
+        game_input(&game_state);
         camera_input(&game_state, &render_state, elapsed_time);
 
         // update
@@ -56,7 +58,6 @@ int main(void) {
             accumulator_time -= seconds_per_frame;
 
             game_update(&game_state, seconds_per_frame);
-            game_state.print_timer += seconds_per_frame;
         }
 
         // render
@@ -64,7 +65,7 @@ int main(void) {
         
         input_endframe();
         window_swapandpoll();
-        GL_CALL(glClear(GL_COLOR_BUFFER_BIT));
+        GL_CALL(glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT));
     }
 
     // :cleanup
