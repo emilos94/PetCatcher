@@ -39,9 +39,16 @@ typedef enum EntityType EntityType;
 enum EntityFlags {
     EntityFlag_Render = 1 << 0,
     EntityFlag_UseColor = 1 << 1,
-    EntityFlag_UseTexture = 1 << 2
+    EntityFlag_UseTexture = 1 << 2,
+    EntityFlag_Collider = 1 << 3
 };
 typedef u32 EntityFlags;
+
+struct Boundingbox {
+    vec3 center;
+    vec3 half_size;
+};
+typedef struct Boundingbox Boundingbox;
 
 struct Entity {
     vec3 position, rotation, scale;
@@ -55,6 +62,7 @@ struct Entity {
     f32 jump_power, up_velocity, movement_speed;
     
     boolean in_air;
+    Boundingbox bounding_box;
 };
 typedef struct Entity Entity;
 

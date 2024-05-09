@@ -4,6 +4,9 @@ static vec3 COLOR_GREEN = (vec3) { 0.2, 1.0, 0.2 };
 
 #define PLAYER_HEIGHT 2.0
 
+// forward declarations
+boolean aabb_aabb_collision(Boundingbox* either, Boundingbox* other);
+
 boolean renderstate_init(RenderState* render_state) {
     if (!shader_initialise(&render_state->shader, "shaders/vert.txt", "shaders/frag.txt")) {
         printf("[ERROR] failed to initialise shader");
@@ -68,6 +71,10 @@ boolean gamestate_init(GameState* game_state) {
         game_state->player->in_air = false;
         game_state->player->jump_power = 27.0;
         game_state->player->movement_speed = 10.0;
+        glm_vec3_copy(game_state->player->position, game_state->player->bounding_box.center);
+        game_state->player->bounding_box.center[1] -= PLAYER_HEIGHT  / 2.0;
+        glm_vec3_fill(game_state->player->bounding_box.half_size, 0.5);
+        game_state->player->flags = EntityFlag_Collider;
     }
 
     { // :entities
@@ -118,11 +125,15 @@ boolean game_loadmap(GameState* game_state, char* path) {
         entity->scale[0] = mesh->transform[0];
         entity->scale[1] = mesh->transform[5];
         entity->scale[2] = mesh->transform[10];
+        
+        glm_vec3_copy(entity->position, entity->bounding_box.center);
+        glm_vec3_copy(entity->scale, entity->bounding_box.half_size);
+        glm_vec3_scale(entity->bounding_box.half_size, 0.5, entity->bounding_box.half_size);
 
         glm_vec3_fill(entity->rotation, 0.0);
         
         glm_vec3_copy(mesh->color, entity->color);
-        entity->flags |= EntityFlag_Render | EntityFlag_UseColor;
+        entity->flags = EntityFlag_Render | EntityFlag_UseColor | EntityFlag_Collider;
     }
 
     return true;
@@ -233,13 +244,20 @@ void camera_input(GameState* game_state, RenderState* render_state, f32 delta) {
 void game_update(GameState* game_state, f32 delta) {
     // entities
     ARRAYLIST_FOREACH(game_state->entities, Entity, entity) {
-        switch (entity->type)
-        {
-        case EntityType_Player:
+        // :collisions
+        if (entity->flags & EntityFlag_Collider) {
+            glm_vec3_copy(entity->position, entity->bounding_box.center);
+            if (entity == game_state->player) {
+                entity->bounding_box.center[1] -= PLAYER_HEIGHT / 2.0;
+            }
 
-            break;
-        default:
-            break;
+            ARRAYLIST_FOREACHI(game_state->entities, j, Entity, _entity) {
+                if (entity != _entity && 
+                    _entity->flags & EntityFlag_Collider &&
+                    aabb_aabb_collision(&entity->bounding_box, &_entity->bounding_box)) {
+                    printf("Collision!\n");
+                }
+            }
         }
     }
     
@@ -348,3 +366,68 @@ boolean render_flush(RenderState* render_state, ShaderProgram shader_program) {
     render_pipe->entity_count = 0;
     return true;
 }
+
+boolean aabb_aabb_collision(Boundingbox* either, Boundingbox* other) {
+    f32 min_x0 = either->center[0] - either->half_size[0];
+    f32 min_y0 = either->center[1] - either->half_size[1];
+    f32 min_z0 = either->center[2] - either->half_size[2];
+    f32 max_x0 = either->center[0] + either->half_size[0];
+    f32 max_y0 = either->center[1] + either->half_size[1];
+    f32 max_z0 = either->center[2] + either->half_size[2];
+
+    f32 min_x1 = other->center[0] - other->half_size[0];
+    f32 min_y1 = other->center[1] - other->half_size[1];
+    f32 min_z1 = other->center[2] - other->half_size[2];
+    f32 max_x1 = other->center[0] + other->half_size[0];
+    f32 max_y1 = other->center[1] + other->half_size[1];
+    f32 max_z1 = other->center[2] + other->half_size[2];
+
+    boolean result =
+        min_x0 <= max_x1 &&
+        max_x0 >= min_x1 &&
+        min_y0 <= max_y1 &&
+        max_y0 >= min_y1 &&
+        min_z0 <= max_z1 &&
+        max_z0 >= min_z1;
+
+    return result;
+}
+
+/* // might come in handy todo
+boolean aabb_ray_intersects(vec3 ray_origin, vec3 ray_direction, BoundingBox* other) {
+    vec3 dir_frac = GLM_VEC3_ONE_INIT;
+    glm new Vector3f(1f).div(rayDirection);
+
+    Vector3f actualPos = new Vector3f(basePosition);
+    actualPos.add(offset);
+
+    Vector3f min = new Vector3f(), max = new Vector3f();
+    actualPos.sub(halfSize, min);
+    actualPos.add(halfSize, max);
+
+    // lb is the corner of AABB with minimal coordinates - left bottom, rt is maximal corner
+    // r.org is origin of ray
+    float t1 = (min.x - rayOrigin.x) * dirFrac.x;
+    float t2 = (max.x - rayOrigin.x) * dirFrac.x;
+    float t3 = (min.y - rayOrigin.y) * dirFrac.y;
+    float t4 = (max.y - rayOrigin.y) * dirFrac.y;
+    float t5 = (min.z - rayOrigin.z) * dirFrac.z;
+    float t6 = (max.z - rayOrigin.z) * dirFrac.z;
+
+    float tmin = max(max(min(t1, t2), min(t3, t4)), min(t5, t6));
+    float tmax = min(min(max(t1, t2), max(t3, t4)), max(t5, t6));
+
+// if tmax < 0, ray (line) is intersecting AABB, but the whole AABB is behind us
+    if (tmax < 0)
+    {
+        yield new IntersectionResult(false, tmax);
+    }
+
+// if tmin > tmax, ray doesn't intersect AABB
+    if (tmin > tmax)
+    {
+        yield new IntersectionResult(false, tmax);
+    }
+
+    yield new IntersectionResult(true, tmin);
+}*/
