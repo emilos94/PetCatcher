@@ -328,6 +328,7 @@ void game_update(GameState* game_state, f32 delta) {
     ARRAYLIST_FOREACHI(game_state->entities, i, Entity, e) {
         if (e->queue_delete) {
             u32 list_index = e->list_index;
+            e->queue_delete = false;
             arraylist_remove(&game_state->entities, e->list_index);
             // arraylist graps last element and replaces removed to keep it dense
             // update list_index in entity replacing the removed
