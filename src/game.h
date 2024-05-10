@@ -33,6 +33,7 @@ typedef struct Player Player;
 enum EntityTag {
     EntityTag_Player,
     EntityTag_Fruit,
+    EntityTag_Obstacle,
     EntityTag_Other
 };
 typedef enum EntityTag EntityTag;
@@ -50,6 +51,11 @@ enum FruitType {
     FruitType_Apple
 };
 typedef enum FruitType FruitType;
+
+enum ObstacleType {
+    ObstacleType_Boulder
+};
+typedef enum ObstacleType ObstacleType;
 
 struct Boundingbox {
     vec3 center;
@@ -81,6 +87,12 @@ struct Entity {
 
     // fruit data
     u32 points;
+
+    // obstacle data
+    u32 damage;
+
+    // shared
+    u32 health;
 };
 typedef struct Entity Entity;
 
@@ -102,11 +114,15 @@ struct GameState {
     // assets
     ColladaData map_data;
     ColladaData apple_data;
+    ColladaData boulder_data;
 
     Boundingbox ground_box;
 
     // fruit spawning
     f32 fruit_spawn_timer, fruit_spawn_interval;
+
+    // obstacle spawning
+    f32 obstacle_spawn_timer, obstacle_spawn_interval;
 
     // misc
     f32 print_timer;

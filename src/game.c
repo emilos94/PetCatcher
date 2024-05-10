@@ -4,10 +4,12 @@ static vec3 COLOR_GREEN = (vec3) { 0.2, 1.0, 0.2 };
 
 #define PLAYER_HEIGHT 2.0
 #define FRUIT_SPAWN_HEIGHT 10.0
+#define OBSTACLE_SPAWN_HEIGHT 15.0
 
 // :forward declarations
 boolean aabb_aabb_collision(Boundingbox* either, Boundingbox* other);
 void spawn_fruit(GameState* game_state, FruitType fruit_type, vec3 position);
+void spawn_obstacle(GameState* game_state, ObstacleType obstacle_type, vec3 position);
 f32 random_ratio(void);
 
 boolean renderstate_init(RenderState* render_state) {
@@ -81,6 +83,7 @@ boolean gamestate_init(GameState* game_state) {
         player->flags = EntityFlag_Collider | EntityFlag_RigidBody;
         player->tag = EntityTag_Player;
         player->list_index = game_state->entities.element_count - 1;
+        player->health = 20;
         game_state->player = player;
     }
 
@@ -90,6 +93,10 @@ boolean gamestate_init(GameState* game_state) {
         }
 
         if (!file_loadcollada(&game_state->apple_data, "../res/meshes/apple.dae")) {
+            return false;
+        }
+
+        if (!file_loadcollada(&game_state->boulder_data, "../res/meshes/boulder.dae")) {
             return false;
         }
     }
@@ -116,9 +123,12 @@ boolean gamestate_init(GameState* game_state) {
         game_state->print_timer = 0.0;
     }
 
-    { // :spawn fruit
+    { // :spawn 
         game_state->fruit_spawn_timer = 0.0;
-        game_state->fruit_spawn_interval = 5.0;
+        game_state->fruit_spawn_interval = 2.0;
+
+        game_state->obstacle_spawn_timer = 0.0;
+        game_state->obstacle_spawn_interval = 5.0;
     }
 
     return true;
@@ -284,8 +294,14 @@ void game_update(GameState* game_state, f32 delta) {
 
                     if (entity->tag == EntityTag_Player && _entity->tag == EntityTag_Fruit) {
                         _entity->queue_delete = true;
+                        entity->health += _entity->health;
                         game_state->score += _entity->points;
-                        printf("Caught fruit ! Score: %d\n", game_state->score);
+                        printf("Caught fruit ! Score: %d, health: %d\n", game_state->score, entity->health);
+                    }
+                    if (entity->tag == EntityTag_Player && _entity->tag == EntityTag_Obstacle) {
+                        _entity->queue_delete = true;
+                        entity->health -= _entity->damage;
+                        printf("Collided with obstacle! health: %d\n", entity->health);
                     }
                 }
             }
@@ -312,6 +328,7 @@ void game_update(GameState* game_state, f32 delta) {
     ARRAYLIST_FOREACHI(game_state->entities, i, Entity, e) {
         if (e->queue_delete) {
             u32 list_index = e->list_index;
+            e->queue_delete = false;
             arraylist_remove(&game_state->entities, e->list_index);
             // arraylist graps last element and replaces removed to keep it dense
             // update list_index in entity replacing the removed
@@ -335,6 +352,20 @@ void game_update(GameState* game_state, f32 delta) {
         spawn_fruit(game_state, FruitType_Apple, (vec3){x_pos, FRUIT_SPAWN_HEIGHT, z_pos});
 
         game_state->fruit_spawn_timer -= game_state->fruit_spawn_interval;
+    }
+    
+    // :spawn obstacle
+    game_state->obstacle_spawn_timer += delta; 
+    if (game_state->obstacle_spawn_timer >= game_state->obstacle_spawn_interval) {
+        f32 ratio_x = random_ratio();
+        f32 ratio_z = random_ratio();
+
+        f32 x_pos = game_state->ground_box.half_size[0] * 2.0 * ratio_x - game_state->ground_box.half_size[0];
+        f32 z_pos = game_state->ground_box.half_size[2] * 2.0 * ratio_z - game_state->ground_box.half_size[2];
+
+        spawn_obstacle(game_state, ObstacleType_Boulder, (vec3){x_pos, OBSTACLE_SPAWN_HEIGHT, z_pos});
+
+        game_state->obstacle_spawn_timer -= game_state->obstacle_spawn_interval;
     }
 
     // :timers
@@ -474,7 +505,7 @@ boolean aabb_aabb_collision(Boundingbox* either, Boundingbox* other) {
     return result;
 }
 
-// :spawn
+// :spawn fruit
 void spawn_fruit(GameState* game_state, FruitType fruit_type, vec3 position) {
         u32 index = game_state->entities.element_count;
         Entity* fruit = arraylist_push(&game_state->entities);
@@ -487,6 +518,7 @@ void spawn_fruit(GameState* game_state, FruitType fruit_type, vec3 position) {
             fruit->mesh = game_state->apple_data.meshes;
             fruit->mesh_count = game_state->apple_data.mesh_count;
             fruit->points = 5;
+            fruit->health = 2;
             fruit->mass = 10.0;
             glm_vec3_fill(fruit->scale, 0.3);
             break;
@@ -504,6 +536,38 @@ void spawn_fruit(GameState* game_state, FruitType fruit_type, vec3 position) {
         fruit->in_air = true;
         fruit->y_velocity = 0.0;
         fruit->tag = EntityTag_Fruit;
+}
+
+// :spawn obstacle
+void spawn_obstacle(GameState* game_state, ObstacleType obstacle_type, vec3 position) {
+        u32 index = game_state->entities.element_count;
+        Entity* obstacle = arraylist_push(&game_state->entities);
+        obstacle->list_index = index;
+        glm_vec3_copy(position, obstacle->position);
+
+        switch (obstacle_type)
+        {
+        case ObstacleType_Boulder:
+            obstacle->mesh = game_state->boulder_data.meshes;
+            obstacle->mesh_count = game_state->boulder_data.mesh_count;
+            obstacle->damage = 5;
+            obstacle->mass = 20.0;
+            glm_vec3_fill(obstacle->scale, 1.0);
+            break;
+        
+        default:
+            break;
+        }
+
+        glm_vec3_fill(obstacle->rotation, 0.0);
+        glm_vec3_copy(obstacle->position, obstacle->bounding_box.center);
+        glm_vec3_copy(obstacle->scale, obstacle->bounding_box.half_size);
+        glm_vec3_scale(obstacle->bounding_box.half_size, 1.0, obstacle->bounding_box.half_size);
+        
+        obstacle->flags = EntityFlag_Render | EntityFlag_UseColor | EntityFlag_Collider | EntityFlag_RigidBody;
+        obstacle->in_air = true;
+        obstacle->y_velocity = 0.0;
+        obstacle->tag = EntityTag_Obstacle;
 }
 
 
