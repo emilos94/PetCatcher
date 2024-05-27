@@ -4,6 +4,7 @@ boolean vertexarray_initialise(VertexArray* vertex_array) {
     GL_CALL(glGenVertexArrays(1, &vertex_array->handle));
     GL_CALL(glBindVertexArray(vertex_array->handle));
     vertex_array->vertex_buffer_count = 0;
+    vertex_array->ebo_length = 0;
     return true;
 }
 
@@ -83,14 +84,36 @@ boolean vertexarray_buffersubdata_i(VertexArray* vertex_array, u32 buffer_index,
 }
 
 
+boolean vertexarray_add_element_indices(VertexArray* vertex_array, int* indices, u32 length, u32 usage) {
+    GL_CALL(glBindVertexArray(vertex_array->handle));
+
+    GL_CALL(glGenBuffers(1, &vertex_array->ebo_handle));
+    GL_CALL(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, vertex_array->ebo_handle));
+    GL_CALL(glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(GLuint) * length, indices, usage));
+    vertex_array->ebo_length = length;
+    vertex_array->vertices_count = length / 3;
+    
+    GL_CALL(glBindVertexArray(0));
+}
+
+
 void vertexarray_bind(VertexArray* vertex_array) {
     GL_CALL(glBindVertexArray(vertex_array->handle));
+}
+
+
+void vertexarray_unbind(void) {
+    GL_CALL(glBindVertexArray(0));
 }
 
 void vertexarray_destroy(VertexArray* vertex_array) {
     for(u32 i = 0; i < vertex_array->vertex_buffer_count; i++) {
         VertexBuffer* buffer = vertex_array->vertex_buffers + i;
         GL_CALL(glDeleteBuffers(1, &buffer->handle));
+    }
+
+    if (vertex_array->ebo_length > 0) {
+        GL_CALL(glDeleteBuffers(1, &vertex_array->ebo_handle));
     }
 
     GL_CALL(glDeleteVertexArrays(1, &vertex_array->handle));

@@ -3,7 +3,7 @@
 
 #include "graphics/render_pipe.h"
 #include "graphics/window.h"
-#include "core/input.h"
+#include "ui/ui.h"
 
 struct RenderState {
     RenderPipe render_pipe;
@@ -136,6 +136,8 @@ void game_input(GameState* game_state);
 void game_update(GameState* game_state, f32 delta);
 void game_render(GameState* game_state, RenderState* render_state, f32 delta);
 boolean game_loadmap(GameState* game_state, char* path);
+
+
 boolean entity_render(RenderState* render_state, Entity* entity);
 boolean render_flush(RenderState* render_state, ShaderProgram shader_program);
 

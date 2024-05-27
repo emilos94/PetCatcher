@@ -1,10 +1,8 @@
 #include "stdio.h"
-#include "graphics/window.h"
 #include "graphics/shaderprogram.h"
 #include "graphics/vertexarray.h"
 #include "graphics/render_pipe.h"
 #include "graphics/texture.h"
-#include "core/input.h"
 #include "cglm/cglm.h"
 #include "cglm/struct.h"
 #include "core/file_loader.h"
@@ -31,6 +29,10 @@ int main(void) {
 
     GameState game_state;
     if (!gamestate_init(&game_state)) {
+        return 0;
+    }
+
+    if (!ui_init()) {
         return 0;
     }
 
@@ -71,6 +73,7 @@ int main(void) {
     // :cleanup
     shader_destroy(render_state.shader);
     renderpipe_destroy(&render_state.render_pipe);
+    ui_destroy();
     window_destroy();
     
     return 0;

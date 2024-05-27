@@ -5,11 +5,13 @@
 boolean shader_initialise(ShaderProgram* shader_program, char* vertex_path, char* fragment_path) {
     u32 vertex_handle;
     if (!shader_load_source(vertex_path, GL_VERTEX_SHADER, &vertex_handle)) {
+        printf("Failed to load vertex shader source!\n");
         return false;
     }
 
     u32 fragment_handle;
     if (!shader_load_source(fragment_path, GL_FRAGMENT_SHADER, &fragment_handle)) {
+        printf("Failed to load fragment shader source!\n");
         return false;
     }
 
@@ -39,6 +41,10 @@ boolean shader_initialise(ShaderProgram* shader_program, char* vertex_path, char
 
 void shader_bind(ShaderProgram shader_program) {
     GL_CALL(glUseProgram(shader_program));
+}
+
+void shader_unbind(void) {
+    GL_CALL(glUseProgram(0));
 }
 
 void shader_destroy(ShaderProgram shader_program) {

@@ -1,6 +1,7 @@
 #include "game.h"
 
 static vec3 COLOR_GREEN = (vec3) { 0.2, 1.0, 0.2 };
+static vec3 COLOR_WHITE = (vec3) { 1.0, 1.0, 1.0 };
 
 #define PLAYER_HEIGHT 2.0
 #define FRUIT_SPAWN_HEIGHT 10.0
@@ -270,8 +271,9 @@ void camera_input(GameState* game_state, RenderState* render_state, f32 delta) {
     glm_mat4_identity(render_state->view_matrix);
     glm_lookat(game_state->player->position, lookat, game_state->camera_up, render_state->view_matrix);
 
+    shader_bind(render_state->shader);
     shader_uniform_mat4(render_state->view_matrix_location, render_state->view_matrix);
-
+    shader_unbind();
 }
 
 void game_input(GameState* game_state) {
@@ -368,6 +370,16 @@ void game_update(GameState* game_state, f32 delta) {
         game_state->obstacle_spawn_timer -= game_state->obstacle_spawn_interval;
     }
 
+    UIInfo box = ui_box("box", (vec2){0.0, 0.0}, (vec2){1.0, 0.07});
+    
+    if (box.hot) {
+        glm_vec3_copy(COLOR_GREEN, box.widget->background_color);
+        printf("Box hovered!\n");
+    }
+    else {
+        glm_vec3_copy(COLOR_WHITE, box.widget->background_color);
+    }
+
     // :timers
     game_state->print_timer += delta;
 
@@ -388,6 +400,10 @@ void game_render(GameState* game_state, RenderState* render_state, f32 delta) {
     }
     
     render_flush(render_state, render_state->shader);
+    shader_unbind();
+    vertexarray_unbind();
+
+    ui_render();
 }
 
 boolean entity_render(RenderState* render_state, Entity* entity) {
