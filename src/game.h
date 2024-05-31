@@ -76,7 +76,7 @@ struct Entity {
     vec3 color;
 
     // player data
-    f32 jump_power, movement_speed;
+    f32 jump_power, movement_speed, hunger;
     
     // rigid body
     boolean in_air; 
@@ -92,7 +92,7 @@ struct Entity {
     u32 damage;
 
     // shared
-    u32 health;
+    int health;
 };
 typedef struct Entity Entity;
 
@@ -126,6 +126,12 @@ struct GameState {
 
     // misc
     f32 print_timer;
+    u64 update_count;
+
+    // flags
+    boolean paused;
+    boolean quiting;
+    boolean game_over;
 };
 typedef struct GameState GameState;
 

@@ -19,7 +19,6 @@
                 "-o",
                 "${workspaceFolder}\\build\\main.exe",
                 "-L${workspaceFolder}\\dependencies\\lib",
-                "${workspaceFolder}\\dependencies\\lib\\cglm.lib",
                 "-lglfw3",
                 "-lopengl32",
                 "-lkernel32",

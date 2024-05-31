@@ -2,8 +2,9 @@
 #define UI_H
 
 #include "core/core.h"
-#include "core/string.h"
+#include "core/mystring.h"
 #include "graphics/window.h"
+#include "core/input.h"
 #include "datastructures/arraylist.h"
 #include "datastructures/list.h"
 #include "cglm/cglm.h"
@@ -31,6 +32,8 @@ struct UIWidget {
     vec3 text_color;
 
     vec2 rel_position, rel_size;
+
+    u64 last_frame;
 };
 typedef struct UIWidget UIWidget;
 
@@ -49,5 +52,7 @@ UIInfo ui_box(char* id, vec2 position, vec2 size);
 boolean ui_init(void);
 void ui_render(void);
 void ui_destroy(void);
+
+void ui_set_framecount(u64 frame_count);
 
 #endif // UI_H

@@ -2,6 +2,7 @@
 
 static UIWidget root;
 static ArrayList widgets;
+static u64 frame_count[1];
 
 UIWidget* current_parent;
 ArrayList color_list;
@@ -53,22 +54,24 @@ UIInfo ui_box(char* id, vec2 position, vec2 size) {
         string_copy_n(&widget->id, id, len);
     }
 
+    widget->last_frame = frame_count[0];
+
     glm_vec2_copy(position, widget->position);
     glm_vec2_copy(size, widget->size);
-   /* f32* current_color = arraylist_peekback(&color_list);
-    widget->background_color[0] = current_color[0];
-    widget->background_color[1] = current_color[1];
-    widget->background_color[2] = current_color[2];*/
 
     f32 mouse_x = input_mouse_x_rel();
     f32 mouse_y = input_mouse_y_rel();
 
     boolean hot = mouse_x >= widget->position[0] && mouse_x <= widget->position[0] + widget->size[0] &&
                   mouse_y >= widget->position[1] && mouse_y <= widget->position[1] + widget->size[1];
+
+    // todo: add scrolling to this if necessary
+    boolean active = hot && (input_mouse_keyrelease(GLFW_MOUSE_BUTTON_LEFT) || 
+                             input_mouse_keyrelease(GLFW_MOUSE_BUTTON_RIGHT));
     
     UIInfo info = {
         .widget = widget,
-        .active = false,
+        .active = active,
         .hot = hot
     };
     
@@ -86,6 +89,7 @@ UIWidget* _ui_findbyid(char* id) {
 }
 
 boolean ui_init(void) {
+    frame_count[0] = 0;
     glm_vec2_fill(root.size, 1.0);
     glm_vec2_fill(root.position, 0.0);
     arraylist_initialise(&widgets, 100, sizeof(UIWidget));
@@ -151,6 +155,8 @@ boolean ui_init(void) {
 }
 
 void _ui_render_flush(u32 indices_count) {
+    if (indices_count == 0) return;
+
     shader_bind(ui_render_state.shader);
     vertexarray_bind(&ui_render_state.vertex_array);
 
@@ -177,6 +183,14 @@ void _ui_render_flush(u32 indices_count) {
 }
 
 void ui_render(void) {
+    { // prune if not touched this frame
+        ARRAYLIST_FOREACH(widgets, UIWidget, widget) {
+            if (widget->last_frame < frame_count[0]) {
+                arraylist_remove(&widgets, index);
+                index--;
+            }
+        }
+    }
 
     u32 positions_offset = 0, indices_count = 0, colors_offset = 0;
     ARRAYLIST_FOREACH(widgets, UIWidget, widget) {
@@ -226,8 +240,12 @@ void ui_render(void) {
     }
 
     _ui_render_flush(indices_count);
+    frame_count[0]++;
 }
 
+void ui_set_framecount(u64 _frame_count) {
+    frame_count[0] = _frame_count;
+}
 
 void ui_destroy(void) {
     arraylist_free(&widgets);

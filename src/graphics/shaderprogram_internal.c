@@ -8,7 +8,7 @@ boolean shader_load_source(char* path, u32 shader_type, GLuint* shader_handle) {
     }
     
 	GLuint shader = glCreateShader(shader_type);
-	GL_CALL(glShaderSource(shader, 1, &result.chars, NULL));
+	GL_CALL(glShaderSource(shader, 1, (const GLchar**)&result.chars, NULL));
 	GL_CALL(glCompileShader(shader));
 
 	int success;

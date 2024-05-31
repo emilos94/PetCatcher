@@ -5,40 +5,42 @@
 #include "graphics/texture.h"
 #include "cglm/cglm.h"
 #include "cglm/struct.h"
+#include "core/input.h"
 #include "core/file_loader.h"
 #include "game.h"
 
 int main(void) {
-    input_init();
-
     if (!window_init(1280, 720, "Pet catcher")) {
-        printf("[ERROR] failed to initialise shader");
-        return 0;
+        printf("[ERROR] failed to initialise window");
+        goto cleanup;
     }
+    
+    input_init();
 
     GL_CALL(glEnable(GL_CULL_FACE));
     GL_CALL(glCullFace(GL_BACK));
     GL_CALL(glEnable(GL_DEPTH_TEST));
-
-    boolean running = true;
-
+    
     RenderState render_state;
     if (!renderstate_init(&render_state)) {
-        return 0;
+        printf("[ERROR] failed to initialise render state");
+        goto cleanup;
     }
 
     GameState game_state;
     if (!gamestate_init(&game_state)) {
-        return 0;
+        printf("[ERROR] failed to initialise game state");
+        goto cleanup;
     }
 
     if (!ui_init()) {
-        return 0;
+        printf("[ERROR] failed to initialise ui module");
+        goto cleanup;
     }
 
     boolean mouse_enabled = false;
     f32 accumulator_time = 0.0, last_time = glfwGetTime(), seconds_per_frame = 1.0 / 60.0;
-    while (running && !window_should_exit()) {
+    while (!game_state.quiting && !window_should_exit()) {
         f32 current_time = glfwGetTime();
         f32 elapsed_time = current_time - last_time;
         accumulator_time += elapsed_time;
@@ -46,7 +48,7 @@ int main(void) {
 
         // input
         if (input_keydown(GLFW_KEY_ESCAPE)) {
-            running = false;
+            game_state.quiting = true;
         }
         if (input_keydown(GLFW_KEY_LEFT_CONTROL) && input_keyjustdown(GLFW_KEY_M)) {
             mouse_enabled = !mouse_enabled;
@@ -59,22 +61,22 @@ int main(void) {
         if (accumulator_time > seconds_per_frame) {
             accumulator_time -= seconds_per_frame;
 
-            game_update(&game_state, seconds_per_frame);
+            game_update(&game_state, seconds_per_frame);        
+            input_endframe();
         }
 
         // render
         game_render(&game_state, &render_state, elapsed_time);
         
-        input_endframe();
         window_swapandpoll();
         GL_CALL(glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT));
     }
 
-    // :cleanup
+cleanup:
     shader_destroy(render_state.shader);
     renderpipe_destroy(&render_state.render_pipe);
     ui_destroy();
     window_destroy();
-    
+
     return 0;
 }

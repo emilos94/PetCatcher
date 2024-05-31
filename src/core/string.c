@@ -1,4 +1,4 @@
-#include "core/string.h"
+#include "core/mystring.h"
 
 
 void string_copy(String* destination, String* source) {

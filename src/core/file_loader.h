@@ -2,7 +2,7 @@
 #define FILE_LOADER_H
 
 #include "stdio.h"
-#include "core/string.h"
+#include "core/mystring.h"
 #include "datastructures/arraylist.h"
 #include "cglm/cglm.h"
 
