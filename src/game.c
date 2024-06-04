@@ -7,6 +7,7 @@ static vec3 COLOR_WHITE = (vec3) { 1.0, 1.0, 1.0 };
 #define PLAYER_HEIGHT 2.0
 #define PLAYER_HEALTH_MAX 20
 #define PLAYER_HUNGER_MAX 20.0
+#define PLAYER_HUNGER_TICK 1.5
 #define FRUIT_SPAWN_HEIGHT 10.0
 #define OBSTACLE_SPAWN_HEIGHT 15.0
 
@@ -352,7 +353,7 @@ void game_update(GameState* game_state, f32 delta) {
     }
 
     // player update:
-    game_state->player->hunger += 3.5 * delta;
+    game_state->player->hunger += PLAYER_HUNGER_TICK * delta;
     if (game_state->player->hunger >= PLAYER_HUNGER_MAX) {
         game_state->game_over = true;
     }
@@ -426,7 +427,7 @@ game_paused_actions:
             game_state->camera_front[0] = 0.0;
             game_state->camera_front[1] = 0.0;
             game_state->camera_front[2] = -1.0;
-            
+
             game_state->score = 0;
 
             ARRAYLIST_FOREACH(game_state->entities, Entity, entity) {
