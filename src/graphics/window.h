@@ -11,6 +11,8 @@ boolean window_should_exit(void);
 boolean window_destroy(void);
 void window_swapandpoll(void);
 void window_enable_cursor(boolean enabled);
+void window_set_cursor_arrow(void);
+void window_set_cursor_hand(void);
 
 f32 window_width(void);
 f32 window_height(void);

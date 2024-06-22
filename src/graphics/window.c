@@ -4,6 +4,9 @@ static GLFWwindow* window_handle[1] = {NULL};
 static f32 window_size[2] = {0.0, 0.0};
 static boolean cursor_enabled[1] = { false };
 
+static GLFWcursor* cursor_arrow = 0;
+static GLFWcursor* cursor_hand = 0;
+
 void window_error_callback(int code, const char* error_message);
 void window_size_callback(GLFWwindow* window_handle, int width, int height);
 
@@ -35,6 +38,9 @@ boolean window_init(u32 width, u32 height, char* title) {
     glfwSetMouseButtonCallback(window_handle[0], input_mouse_button_callback);
 
     glfwSetInputMode(window_handle[0], GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+
+    cursor_arrow = glfwCreateStandardCursor(GLFW_ARROW_CURSOR);
+    cursor_hand = glfwCreateStandardCursor(GLFW_HAND_CURSOR);
     
     return true;
 }
@@ -45,6 +51,8 @@ boolean window_should_exit(void) {
 
 boolean window_destroy(void) {
     glfwDestroyWindow(window_handle[0]);
+    glfwDestroyCursor(cursor_arrow);
+    glfwDestroyCursor(cursor_hand);
     glfwTerminate();
     return true;
 }
@@ -73,6 +81,14 @@ void window_enable_cursor(boolean enabled) {
     }
     
     cursor_enabled[0] = enabled;
+}
+
+void window_set_cursor_arrow(void) {
+    glfwSetCursor(window_handle[0], cursor_arrow);
+}
+
+void window_set_cursor_hand(void) {
+    glfwSetCursor(window_handle[0], cursor_hand);
 }
 
 f32 window_width(void) {

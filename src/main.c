@@ -20,6 +20,9 @@ int main(void) {
     GL_CALL(glEnable(GL_CULL_FACE));
     GL_CALL(glCullFace(GL_BACK));
     GL_CALL(glEnable(GL_DEPTH_TEST));
+    GL_CALL(glEnable(GL_BLEND));
+    GL_CALL(glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA));
+    GL_CALL(glClearColor(0.0, 0.2, 0.8, 0.0));
     
     RenderState render_state;
     if (!renderstate_init(&render_state)) {

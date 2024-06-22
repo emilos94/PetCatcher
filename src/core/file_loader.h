@@ -5,6 +5,7 @@
 #include "core/mystring.h"
 #include "datastructures/arraylist.h"
 #include "cglm/cglm.h"
+#include "graphics/texture.h"
 
 #ifdef _MSC_VER
 #define _CRT_SECURE_NO_WARNINGS // enables use of fopen
@@ -76,5 +77,32 @@ typedef struct NodeScene NodeScene;
 
 boolean file_loadcollada(ColladaData* collada_data, char* path);
 void colladadata_free(ColladaData* collada_data);
+
+struct KeyValue {
+    String key, value;
+};
+typedef struct KeyValue KeyValue;
+boolean file_loadkeyvalue(ArrayList* key_value_list, char* path);
+
+struct CharacterInfo {
+    u32 id;
+    u32 x, y, width, height, x_advance;
+    int x_offset, y_offset;
+};
+typedef struct CharacterInfo CharacterInfo;
+
+struct FontFileResult {
+    String face;
+    u32 paddings[4];
+    u32 line_height, base, width, height;
+
+    u32 character_info_count;
+    CharacterInfo* character_infos;
+
+    Texture texture;
+};
+typedef struct FontFileResult FontFileResult;
+
+boolean file_loadfont(FontFileResult* result, char* path, char* texture_path);
 
 #endif

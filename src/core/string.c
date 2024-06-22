@@ -101,3 +101,31 @@ void string_tointarray(String str, int** out, char delimiter, u32 count) {
     
     *out = result;
 }
+
+boolean string_chars_startswith(char* source, char* literal) {
+    int literal_length = strlen(literal);
+
+    for (int i = 0; i < literal_length; i++) {
+        if (source[i] != literal[i]) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+void string_lit_concat(String* destination, char* left, char* right) {
+    int left_length = strlen(left);
+    int right_length = strlen(right);
+
+    destination->chars = malloc(left_length + right_length);
+    destination->length = left_length + right_length;
+
+    for (u32 i = 0; i < left_length; i++) {
+        destination->chars[i] = left[i];
+    }
+        
+    for (u32 i = 0; i < right_length; i++) {
+        destination->chars[left_length + i] = right[i];
+    }
+}

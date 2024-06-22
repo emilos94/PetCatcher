@@ -11,6 +11,8 @@ static vec3 COLOR_WHITE = (vec3) { 1.0, 1.0, 1.0 };
 #define FRUIT_SPAWN_HEIGHT 10.0
 #define OBSTACLE_SPAWN_HEIGHT 15.0
 
+f32 font_size = 0.001;
+
 // :forward declarations
 boolean aabb_aabb_collision(Boundingbox* either, Boundingbox* other);
 void spawn_fruit(GameState* game_state, FruitType fruit_type, vec3 position);
@@ -401,6 +403,16 @@ void game_update(GameState* game_state, f32 delta) {
         game_state->obstacle_spawn_timer -= game_state->obstacle_spawn_interval;
     }
 
+    if (input_keydown(GLFW_KEY_LEFT_CONTROL) && input_keyjustdown(GLFW_KEY_DOWN)) {
+        font_size -= 0.005;
+    }
+    
+    if (input_keydown(GLFW_KEY_LEFT_CONTROL) && input_keyjustdown(GLFW_KEY_UP)) {
+        font_size += 0.005;
+    }
+    
+    //UIInfo label = ui_label("test.text", "TTst", (vec2){0, 0}, (vec2){1, 1}, font_size);
+
 game_paused_actions:
     game_state->update_count++;
     ui_set_framecount(game_state->update_count);
@@ -415,9 +427,10 @@ game_paused_actions:
         f32 x = 0.5 - button_width / 2.0;
         f32 y = 0.7;
 
-        UIInfo try_again = ui_box("gameover.tryagain", (vec2){x, y}, (vec2){button_width, button_height});
-        glm_vec3_copy(COLOR_ORANGE, try_again.widget->background_color);
-        if (try_again.active) {
+        UIWidget* try_again = ui_button("gameover.text", "Retry?", (vec2){x, y}, (vec2){button_width, button_height}, font_size);
+        
+        glm_vec3_copy(COLOR_ORANGE, try_again->background_color);
+        if (try_again->active) {
             game_state->game_over = false;
             game_state->player->health = PLAYER_HEALTH_MAX;
             game_state->player->hunger = 0.0;
@@ -443,9 +456,9 @@ game_paused_actions:
         
         y -= button_height + button_padding_y;
 
-        UIInfo quit = ui_box("gameover.quit", (vec2){x, y}, (vec2){button_width, button_height});
-        glm_vec3_copy(COLOR_WHITE, quit.widget->background_color);
-        if (quit.active) {
+        UIWidget* quit = ui_button("gameover.quit", "Quit", (vec2){x, y}, (vec2){button_width, button_height}, font_size);
+        glm_vec3_copy(COLOR_ORANGE, quit->background_color);
+        if (quit->active) {
             game_state->quiting = true;
         }
     }
@@ -464,18 +477,18 @@ game_paused_actions:
         f32 x = 0.5 - button_width / 2.0;
         f32 y = 0.7;
 
-        UIInfo pause = ui_box("pause.resume", (vec2){x, y}, (vec2){button_width, button_height});
-        glm_vec3_copy(COLOR_WHITE, pause.widget->background_color);
-        if (pause.active) {
+        UIWidget* resume = ui_button("pause.resume", "Resume", (vec2){x, y}, (vec2){button_width, button_height}, font_size);
+        glm_vec3_copy(COLOR_ORANGE, resume->background_color);
+        if (resume->active) {
             game_state->paused = false;
             window_enable_cursor(false);
         }
         
         y -= button_height + button_padding_y;
 
-        UIInfo quit = ui_box("pause.quit", (vec2){x, y}, (vec2){button_width, button_height});
-        glm_vec3_copy(COLOR_WHITE, quit.widget->background_color);
-        if (quit.active) {
+        UIWidget* quit = ui_button("pause.quit", "Quit", (vec2){x, y}, (vec2){button_width, button_height}, font_size);
+        glm_vec3_copy(COLOR_ORANGE, quit->background_color);
+        if (quit->active) {
             game_state->quiting = true;
         }
     }
@@ -486,19 +499,19 @@ game_paused_actions:
     // :ui healthbar
     f32 health_bar_total_width = 0.3;
 
+    UIWidget* health_bar_back = ui_box("healthbar.back", (vec2){0.02, 0.94}, (vec2){health_bar_total_width, 0.06});
+    glm_vec3_copy(COLOR_WHITE, health_bar_back->background_color);
+
     f32 width_per_health = (health_bar_total_width - 0.02) / (f32)PLAYER_HEALTH_MAX;
-    UIInfo health_bar_front = ui_box("healthbar.front", (vec2){0.03, 0.95}, (vec2){ width_per_health * (f32)game_state->player->health, 0.04});
-    glm_vec3_copy(COLOR_GREEN, health_bar_front.widget->background_color);
+    UIWidget* health_bar_front = ui_box("healthbar.front", (vec2){0.03, 0.95}, (vec2){ width_per_health * (f32)game_state->player->health, 0.04});
+    glm_vec3_copy(COLOR_GREEN, health_bar_front->background_color);
     
-    UIInfo health_bar_back = ui_box("healthbar.back", (vec2){0.02, 0.94}, (vec2){health_bar_total_width, 0.06});
-    glm_vec3_copy(COLOR_WHITE, health_bar_back.widget->background_color);
+    UIWidget* hunger_bar_back = ui_box("hungerbar.back", (vec2){0.02, 0.87}, (vec2){health_bar_total_width, 0.06});
+    glm_vec3_copy(COLOR_WHITE, hunger_bar_back->background_color);
 
     f32 width_per_hunger = health_bar_total_width / (f32)PLAYER_HUNGER_MAX;
-    UIInfo hunger_bar_front = ui_box("hungerbar.front", (vec2){0.03, 0.88}, (vec2){ health_bar_total_width - (game_state->player->hunger * width_per_hunger) - 0.02, 0.04});
-    glm_vec3_copy(COLOR_ORANGE, hunger_bar_front.widget->background_color);
-    
-    UIInfo hunger_bar_back = ui_box("hungerbar.back", (vec2){0.02, 0.87}, (vec2){health_bar_total_width, 0.06});
-    glm_vec3_copy(COLOR_WHITE, hunger_bar_back.widget->background_color);
+    UIWidget* hunger_bar_front = ui_box("hungerbar.front", (vec2){0.03, 0.88}, (vec2){ health_bar_total_width - (game_state->player->hunger * width_per_hunger) - 0.02, 0.04});
+    glm_vec3_copy(COLOR_ORANGE, hunger_bar_front->background_color);
 
     // :timers
     game_state->print_timer += delta;
