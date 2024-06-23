@@ -410,8 +410,7 @@ void game_update(GameState* game_state, f32 delta) {
     if (input_keydown(GLFW_KEY_LEFT_CONTROL) && input_keyjustdown(GLFW_KEY_UP)) {
         font_size += 0.005;
     }
-    
-    //UIInfo label = ui_label("test.text", "TTst", (vec2){0, 0}, (vec2){1, 1}, font_size);
+
 
 game_paused_actions:
     game_state->update_count++;

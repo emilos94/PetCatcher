@@ -366,16 +366,16 @@ void ui_render(void) {
             f32 x_offset = widget->position[0], y_offset = widget->position[1];
 
             // todo: needs to be based on line by line width to center each line
-            if(0) { // (widget->text_center_x) {
+            if (widget->text_center_x) {
                 f32 text_width = _ui_text_width(&ui_render_state.font, widget);
                 if (text_width < widget->size[0]) {
-                    x_offset = (widget->size[0] - text_width) / 2.0;
+                    x_offset += (widget->size[0] - text_width) / 2.0;
                 }
             }
-            if (0) {//(widget->text_center_y) {
+            if (widget->text_center_y) {
                 f32 text_height = _ui_text_height(&ui_render_state.font, widget);
                 if (text_height < widget->size[1]) {
-                    y_offset = (widget->size[1] - text_height) / 2.0;
+                    y_offset -= (widget->size[1] - text_height) / 2.0;
                 }
             }
 
@@ -389,11 +389,14 @@ void ui_render(void) {
                 char c = widget->text.chars[i];
                 CharacterInfo* char_info = _ui_charinfo_by_char(&ui_render_state.font, c);
 
+                f32 y_cursor_top = y_cursor + ui_render_state.font.line_height * widget->font_size;
+                f32 top_y = y_cursor_top - char_info->y_offset * widget->font_size;
+
                 _ui_fill_quad_into(
                     ui_render_state.text_positions, 
                     text_pos_offset, 
-                    (vec2){x_cursor, y_cursor}, 
-                    (vec2){x_cursor + char_info->width * widget->font_size, y_cursor + char_info->height * widget->font_size}
+                    (vec2){x_cursor, top_y - (f32)char_info->height * widget->font_size}, 
+                    (vec2){x_cursor + char_info->width * widget->font_size, top_y}
                 );
                 text_pos_offset += 8;
 
@@ -493,8 +496,12 @@ f32 _ui_text_width(FontFileResult* font, UIWidget* widget) {
         }
         else {
             CharacterInfo* char_info = _ui_charinfo_by_char(font, c);
-            current_width += (char_info->width + char_info->x_advance) * widget->font_size;
+            current_width += char_info->x_advance * widget->font_size;
         }
+    }
+
+    if (current_width > max_width) {
+        max_width = current_width;
     }
 
     return max_width;
