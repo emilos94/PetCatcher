@@ -12,6 +12,13 @@ void string_copy_n(String* destination, char* chars, u32 count) {
     destination->chars[count] = '\0';
 }
 
+void string_copy_lit(String* destination, char* lit) {
+    int length = strlen(lit);
+    destination->length = length;
+    destination->chars = malloc(length);
+    memcpy(destination->chars, lit, length);
+}
+
 boolean string_equals(String left, String right) {
     if (left.length != right.length) {
         return false;

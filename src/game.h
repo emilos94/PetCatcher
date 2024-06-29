@@ -110,6 +110,7 @@ struct GameState {
 
     // game
     u32 score;
+    char score_label_buffer[50];
 
     // assets
     ColladaData map_data;

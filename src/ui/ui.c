@@ -88,7 +88,7 @@ UIWidget* ui_box(char* id, vec2 position, vec2 size) {
 UIWidget* ui_label(char* id, char* text, vec2 position, vec2 size, f32 font_size) {
     UIWidget* widget = _ui_findbyid(id);
     if (!widget) {
-        widget = _ui_widget_create(id, UIFlag_Clickable | UIFlag_Hoverable | UIFlag_Text);
+        widget = _ui_widget_create(id, UIFlag_Text);
     }
 
     widget->last_frame = frame_count[0];
@@ -98,8 +98,7 @@ UIWidget* ui_label(char* id, char* text, vec2 position, vec2 size, f32 font_size
 
     if (!string_equals_lit(widget->text, text)) {
         free(widget->text.chars);
-        int text_length = strlen(text);
-        string_copy_n(&widget->text, text, text_length);
+        string_copy_lit(&widget->text, text);
     }
     widget->font_size = font_size;
     
@@ -121,8 +120,7 @@ UIWidget* ui_button(char* id, char* text, vec2 position, vec2 size, f32 font_siz
 
     if (!string_equals_lit(widget->text, text)) {
         free(widget->text.chars);
-        int text_length = strlen(text);
-        string_copy_n(&widget->text, text, text_length);
+        string_copy_lit(&widget->text, text);
     }
     widget->font_size = font_size;
     
@@ -132,8 +130,8 @@ UIWidget* ui_button(char* id, char* text, vec2 position, vec2 size, f32 font_siz
 
 UIWidget* _ui_widget_create(char* id, u32 flags) {
     UIWidget* widget = arraylist_push(&widgets);
-    int len = strlen(id);
-    string_copy_n(&widget->id, id, len);
+    memset(widget, 0, sizeof(UIWidget));
+    string_copy_lit(&widget->id, id);
     widget->flags = flags;
 
     // defaults
@@ -388,6 +386,9 @@ void ui_render(void) {
                 }*/
                 char c = widget->text.chars[i];
                 CharacterInfo* char_info = _ui_charinfo_by_char(&ui_render_state.font, c);
+                if (!char_info) {
+                    continue;
+                }
 
                 f32 y_cursor_top = y_cursor + ui_render_state.font.line_height * widget->font_size;
                 f32 top_y = y_cursor_top - char_info->y_offset * widget->font_size;
@@ -496,7 +497,9 @@ f32 _ui_text_width(FontFileResult* font, UIWidget* widget) {
         }
         else {
             CharacterInfo* char_info = _ui_charinfo_by_char(font, c);
-            current_width += char_info->x_advance * widget->font_size;
+            if (char_info) {
+                current_width += char_info->x_advance * widget->font_size;
+            }
         }
     }
 
@@ -512,9 +515,12 @@ f32 _ui_text_height(FontFileResult* font, UIWidget* widget) {
     for (int i = 0; i < widget->text.length; i++) {
         char c = widget->text.chars[i];
         CharacterInfo* char_info = _ui_charinfo_by_char(font, c);
-        f32 height = char_info->height * widget->font_size;
-        if (height > result) {
-            result = height;
+
+        if (char_info) {
+            f32 height = char_info->height * widget->font_size;
+            if (height > result) {
+                result = height;
+            }
         }
     }
 

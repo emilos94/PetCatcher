@@ -13,6 +13,7 @@ typedef struct String String;
 
 void string_copy(String* destination, String* source);
 void string_copy_n(String* destination, char* chars, u32 count);
+void string_copy_lit(String* destination, char* lit);
 boolean string_equals(String left, String right);
 boolean string_equals_lit(String left, char* chars);
 boolean string_endswith_lit(String left, char* chars);

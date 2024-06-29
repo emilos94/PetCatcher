@@ -420,13 +420,19 @@ game_paused_actions:
     if (game_state->game_over) {
         window_enable_cursor(true);
 
-        f32 button_width = 0.3;
+        f32 button_width = 0.35;
         f32 button_height = 0.1;
         f32 button_padding_y = 0.05;
         f32 x = 0.5 - button_width / 2.0;
         f32 y = 0.7;
+        
+        ui_label("game_over.label", "Game over!", (vec2){0, y}, (vec2){1, button_height}, font_size);
+        y -= button_height + button_padding_y;
+        snprintf(game_state->score_label_buffer, sizeof(game_state->score_label_buffer), "Final score: %d", game_state->score);
+        ui_label("game_over_score.label", game_state->score_label_buffer, (vec2){0, y}, (vec2){1, button_height}, font_size / 2);
+        y -= button_height + button_padding_y;
 
-        UIWidget* try_again = ui_button("gameover.text", "Retry?", (vec2){x, y}, (vec2){button_width, button_height}, font_size);
+        UIWidget* try_again = ui_button("gameover.retry", "Retry?", (vec2){x, y}, (vec2){button_width, button_height}, font_size);
         
         glm_vec3_copy(COLOR_ORANGE, try_again->background_color);
         if (try_again->active) {
@@ -470,7 +476,7 @@ game_paused_actions:
     if (game_state->paused && !game_state->game_over) {
         window_enable_cursor(true);
 
-        f32 button_width = 0.3;
+        f32 button_width = 0.35;
         f32 button_height = 0.1;
         f32 button_padding_y = 0.05;
         f32 x = 0.5 - button_width / 2.0;
@@ -511,6 +517,12 @@ game_paused_actions:
     f32 width_per_hunger = health_bar_total_width / (f32)PLAYER_HUNGER_MAX;
     UIWidget* hunger_bar_front = ui_box("hungerbar.front", (vec2){0.03, 0.88}, (vec2){ health_bar_total_width - (game_state->player->hunger * width_per_hunger) - 0.02, 0.04});
     glm_vec3_copy(COLOR_ORANGE, hunger_bar_front->background_color);
+    
+    if (!game_state->paused && !game_state->game_over) {
+        // :ui_score
+        snprintf(game_state->score_label_buffer, sizeof(game_state->score_label_buffer), "Score: %d", game_state->score);
+        ui_label("score.label", game_state->score_label_buffer, (vec2){0.75, 0.95}, (vec2){0.1, 0.1}, font_size / 2);
+    }
 
     // :timers
     game_state->print_timer += delta;
