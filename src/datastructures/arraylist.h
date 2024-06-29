@@ -22,6 +22,8 @@ typedef struct ArrayList ArrayList;
 
 void arraylist_initialise(ArrayList* list, u32 capacity, u32 element_byte_size);
 void* arraylist_push(ArrayList* list);
+void* arraylist_peekback(ArrayList* list);
+void* arraylist_popkback(ArrayList* list);
 void* arraylist_at(ArrayList* list, u32 index);
 void arraylist_remove(ArrayList* list, u32 index);
 void arraylist_free(ArrayList* list);

@@ -490,3 +490,133 @@ void colladadata_free(ColladaData* collada_data) {
 
 	free(collada_data->meshes);
 }
+
+boolean file_loadkeyvalue(ArrayList* key_value_list, char* path) {
+	String file_content;
+	if (!file_loadstring(&file_content, path)) {
+		printf("[ERROR] Failed to load font file string");
+		return false;
+	}
+
+	arraylist_initialise(key_value_list, 200, sizeof(KeyValue));
+	
+	int marker = 0;
+	KeyValue* current_key_value = arraylist_push(key_value_list);
+	for(int i = 0; i < file_content.length; i++) {
+		while(file_content.chars[i] != '=') {
+			i++;
+		}
+
+		string_copy_n(&current_key_value->key, file_content.chars + marker, i - marker);
+		i++;
+		marker = i;
+
+		while (file_content.chars[i] != ' ' && file_content.chars[i] != '\n') {
+			i++;
+		}
+		
+		string_copy_n(&current_key_value->value, file_content.chars + marker, i - marker);
+		i++;
+		marker = i;
+
+		current_key_value = arraylist_push(key_value_list);
+
+		while (file_content.chars[i] == ' ' || file_content.chars[i] == '\n' || string_chars_startswith(file_content.chars + i, "\r\n")) {
+			i++;
+		}
+		marker = i;
+	}
+
+	free(file_content.chars);
+	return true;
+}
+
+boolean file_loadfont(FontFileResult* result, char* path, char* texture_path) {
+	ArrayList key_value_list;
+	if (!file_loadkeyvalue(&key_value_list, path)) {
+		printf("[ERROR] Failed to load key value list in font loading");
+		return false;
+	}
+
+	
+	{
+		u32 character_info_index = 0;
+		CharacterInfo* character_info = 0;
+		ARRAYLIST_FOREACH(key_value_list, KeyValue, key_value) {
+			if (string_equals_lit(key_value->key, "info face")) {
+				string_copy(&result->face, &key_value->key);
+			}
+			if (string_equals_lit(key_value->key, "padding")) {
+				// parse padding
+				u32 padding_index = 0;
+				u32 marker = 0;
+				for (int i = 0; i < key_value->value.length; i++) {
+					while (key_value->value.chars[i] != ',') {
+						i++;
+					}
+
+					result->paddings[padding_index++] = atoi(key_value->value.chars + marker);
+					i++;
+					marker = i;
+				}
+			}
+			if (string_equals_lit(key_value->key, "common lineHeight")) {
+				result->line_height = atoi(key_value->value.chars);
+			}
+			if (string_equals_lit(key_value->key, "base")) {
+				result->base = atoi(key_value->value.chars);
+			}
+			if (string_equals_lit(key_value->key, "scaleW")) {
+				result->width = atoi(key_value->value.chars);
+			}
+			if (string_equals_lit(key_value->key, "scaleH")) {
+				result->height = atoi(key_value->value.chars);
+			}
+			if (string_equals_lit(key_value->key, "chars count")) {
+				result->character_info_count = atoi(key_value->value.chars);
+				result->character_infos = malloc(sizeof(CharacterInfo) * result->character_info_count);
+			}
+			if (string_equals_lit(key_value->key, "char id")) {
+				character_info = result->character_infos + character_info_index;
+				character_info->id = atoi(key_value->value.chars);
+				character_info_index++;
+			}
+			if (string_equals_lit(key_value->key, "x")) {
+				character_info->x = atoi(key_value->value.chars);
+			}
+			if (string_equals_lit(key_value->key, "y")) {
+				character_info->y = atoi(key_value->value.chars);
+			}
+			if (string_equals_lit(key_value->key, "width")) {
+				character_info->width = atoi(key_value->value.chars);
+			}
+			if (string_equals_lit(key_value->key, "height")) {
+				character_info->height = atoi(key_value->value.chars);
+			}
+			if (string_equals_lit(key_value->key, "xoffset")) {
+				character_info->x_offset = atoi(key_value->value.chars);
+			}
+			if (string_equals_lit(key_value->key, "yoffset")) {
+				character_info->y_offset = atoi(key_value->value.chars);
+			}
+			if (string_equals_lit(key_value->key, "xadvance")) {
+				character_info->x_advance = atoi(key_value->value.chars);
+			}
+		}
+	}
+	
+	if (!texture_init(&result->texture, texture_path)) {
+		printf("[ERROR] Failed to load font texture\n");
+		return false;
+	}
+
+	{
+		ARRAYLIST_FOREACH(key_value_list, KeyValue, key_value) {
+			free(key_value->key.chars);
+			free(key_value->value.chars);
+		}
+	}
+
+	arraylist_free(&key_value_list);
+	return true;
+}

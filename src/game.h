@@ -3,7 +3,7 @@
 
 #include "graphics/render_pipe.h"
 #include "graphics/window.h"
-#include "core/input.h"
+#include "ui/ui.h"
 
 struct RenderState {
     RenderPipe render_pipe;
@@ -76,7 +76,7 @@ struct Entity {
     vec3 color;
 
     // player data
-    f32 jump_power, movement_speed;
+    f32 jump_power, movement_speed, hunger;
     
     // rigid body
     boolean in_air; 
@@ -92,7 +92,7 @@ struct Entity {
     u32 damage;
 
     // shared
-    u32 health;
+    int health;
 };
 typedef struct Entity Entity;
 
@@ -110,6 +110,7 @@ struct GameState {
 
     // game
     u32 score;
+    char score_label_buffer[50];
 
     // assets
     ColladaData map_data;
@@ -126,6 +127,12 @@ struct GameState {
 
     // misc
     f32 print_timer;
+    u64 update_count;
+
+    // flags
+    boolean paused;
+    boolean quiting;
+    boolean game_over;
 };
 typedef struct GameState GameState;
 
@@ -136,6 +143,8 @@ void game_input(GameState* game_state);
 void game_update(GameState* game_state, f32 delta);
 void game_render(GameState* game_state, RenderState* render_state, f32 delta);
 boolean game_loadmap(GameState* game_state, char* path);
+
+
 boolean entity_render(RenderState* render_state, Entity* entity);
 boolean render_flush(RenderState* render_state, ShaderProgram shader_program);
 

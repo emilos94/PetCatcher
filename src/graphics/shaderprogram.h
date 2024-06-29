@@ -10,6 +10,7 @@ typedef GLuint ShaderProgram;
 
 boolean shader_initialise(ShaderProgram* shader_program, char* vertex_path, char* fragment_path);
 void shader_bind(ShaderProgram shader_program);
+void shader_unbind(void);
 void shader_destroy(ShaderProgram shader_program);
 
 int shader_uniform_location(ShaderProgram shader_program, char* name);

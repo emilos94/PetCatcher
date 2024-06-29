@@ -19,17 +19,22 @@ struct VertexArray {
     VertexBuffer vertex_buffers[VERTEX_ARRAY_BUFFER_CAPACITY];
     u32 vertex_buffer_count;
     u32 vertices_count;
+
+    GLuint ebo_handle;
+    u32 ebo_length;
 };
 typedef struct VertexArray VertexArray;
 
 boolean vertexarray_initialise(VertexArray* vertex_array);
 boolean vertexarray_addbufferf(VertexArray* vertex_array, float* values, u32 length, u32 usage, u32 element_size, u32 byte_stride);
 boolean vertexarray_addbufferi(VertexArray* vertex_array, int* values, u32 length, u32 usage, u32 element_size);
+boolean vertexarray_add_element_indices(VertexArray* vertex_array, int* indices, u32 length, u32 usage);
 
 boolean vertexarray_buffersubdata_f(VertexArray* vertex_array, u32 buffer_index, float* data, u32 length);
 boolean vertexarray_buffersubdata_i(VertexArray* vertex_array, u32 buffer_index, int* data, u32 length);
 
 void vertexarray_bind(VertexArray* vertex_array);
+void vertexarray_unbind(void);
 void vertexarray_destroy(VertexArray* vertex_array);
 
 

@@ -1,4 +1,4 @@
-#include "core/string.h"
+#include "core/mystring.h"
 
 
 void string_copy(String* destination, String* source) {
@@ -10,6 +10,13 @@ void string_copy_n(String* destination, char* chars, u32 count) {
     destination->length = count;
     memcpy(destination->chars, chars, count);
     destination->chars[count] = '\0';
+}
+
+void string_copy_lit(String* destination, char* lit) {
+    int length = strlen(lit);
+    destination->length = length;
+    destination->chars = malloc(length);
+    memcpy(destination->chars, lit, length);
 }
 
 boolean string_equals(String left, String right) {
@@ -100,4 +107,32 @@ void string_tointarray(String str, int** out, char delimiter, u32 count) {
     result[int_counter++] = atoi(&buffer[0]);
     
     *out = result;
+}
+
+boolean string_chars_startswith(char* source, char* literal) {
+    int literal_length = strlen(literal);
+
+    for (int i = 0; i < literal_length; i++) {
+        if (source[i] != literal[i]) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+void string_lit_concat(String* destination, char* left, char* right) {
+    int left_length = strlen(left);
+    int right_length = strlen(right);
+
+    destination->chars = malloc(left_length + right_length);
+    destination->length = left_length + right_length;
+
+    for (u32 i = 0; i < left_length; i++) {
+        destination->chars[i] = left[i];
+    }
+        
+    for (u32 i = 0; i < right_length; i++) {
+        destination->chars[left_length + i] = right[i];
+    }
 }

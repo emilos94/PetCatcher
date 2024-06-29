@@ -1,16 +1,24 @@
 #include "game.h"
 
+static vec3 COLOR_ORANGE = (vec3) { 1.0, 0.5, 0.25 };
 static vec3 COLOR_GREEN = (vec3) { 0.2, 1.0, 0.2 };
+static vec3 COLOR_WHITE = (vec3) { 1.0, 1.0, 1.0 };
 
 #define PLAYER_HEIGHT 2.0
+#define PLAYER_HEALTH_MAX 20
+#define PLAYER_HUNGER_MAX 20.0
+#define PLAYER_HUNGER_TICK 1.5
 #define FRUIT_SPAWN_HEIGHT 10.0
 #define OBSTACLE_SPAWN_HEIGHT 15.0
+
+f32 font_size = 0.001;
 
 // :forward declarations
 boolean aabb_aabb_collision(Boundingbox* either, Boundingbox* other);
 void spawn_fruit(GameState* game_state, FruitType fruit_type, vec3 position);
 void spawn_obstacle(GameState* game_state, ObstacleType obstacle_type, vec3 position);
 f32 random_ratio(void);
+boolean entity_queued_for_deletion(Entity* e);
 
 boolean renderstate_init(RenderState* render_state) {
     if (!shader_initialise(&render_state->shader, "shaders/vert.txt", "shaders/frag.txt")) {
@@ -83,7 +91,8 @@ boolean gamestate_init(GameState* game_state) {
         player->flags = EntityFlag_Collider | EntityFlag_RigidBody;
         player->tag = EntityTag_Player;
         player->list_index = game_state->entities.element_count - 1;
-        player->health = 20;
+        player->health = PLAYER_HEALTH_MAX;
+        player->hunger = 0;
         game_state->player = player;
     }
 
@@ -110,8 +119,8 @@ boolean gamestate_init(GameState* game_state) {
         game_state->camera_up[1] = 1.0;
         game_state->camera_up[2] = 0.0;
 
-        game_state->camera_panning_speed = 10.0;
-        game_state->camera_pan_sensitivity = 0.15;
+        game_state->camera_panning_speed = 5.0;
+        game_state->camera_pan_sensitivity = 0.02;
         game_state->camera_yaw = -90.0;
         game_state->camera_pitch = 0.0;
     }
@@ -130,6 +139,11 @@ boolean gamestate_init(GameState* game_state) {
         game_state->obstacle_spawn_timer = 0.0;
         game_state->obstacle_spawn_interval = 5.0;
     }
+
+    game_state->paused = false;
+    game_state->quiting = false;
+    game_state->game_over = false;
+    game_state->update_count = 0;
 
     return true;
 }
@@ -174,7 +188,9 @@ boolean game_loadmap(GameState* game_state, char* path) {
 
 // :camera
 void camera_input(GameState* game_state, RenderState* render_state, f32 delta) {
-    game_state->print_timer += delta;
+    if (game_state->paused || game_state->game_over) {
+        return;
+    }
     
     { // panning (look around)
         game_state->camera_yaw += input_mouse_x_delta() * game_state->camera_pan_sensitivity;
@@ -270,14 +286,19 @@ void camera_input(GameState* game_state, RenderState* render_state, f32 delta) {
     glm_mat4_identity(render_state->view_matrix);
     glm_lookat(game_state->player->position, lookat, game_state->camera_up, render_state->view_matrix);
 
+    shader_bind(render_state->shader);
     shader_uniform_mat4(render_state->view_matrix_location, render_state->view_matrix);
-
+    shader_unbind();
 }
 
 void game_input(GameState* game_state) {
 }
 
 void game_update(GameState* game_state, f32 delta) {
+    if (game_state->paused || game_state->game_over) {
+        goto game_paused_actions;
+    }
+
     // entities
     ARRAYLIST_FOREACH(game_state->entities, Entity, entity) {
         // :collisions
@@ -295,13 +316,21 @@ void game_update(GameState* game_state, f32 delta) {
                     if (entity->tag == EntityTag_Player && _entity->tag == EntityTag_Fruit) {
                         _entity->queue_delete = true;
                         entity->health += _entity->health;
+                        if (entity->health > PLAYER_HEALTH_MAX) {
+                            entity->health = PLAYER_HEALTH_MAX;
+                        }
+                        entity->hunger -= _entity->points; 
+                        if (entity->hunger < 0.0) {
+                            entity->hunger = 0.0;
+                        }
                         game_state->score += _entity->points;
-                        printf("Caught fruit ! Score: %d, health: %d\n", game_state->score, entity->health);
                     }
                     if (entity->tag == EntityTag_Player && _entity->tag == EntityTag_Obstacle) {
                         _entity->queue_delete = true;
                         entity->health -= _entity->damage;
-                        printf("Collided with obstacle! health: %d\n", entity->health);
+                        if (entity->health <= 0) {
+                            game_state->game_over = true;
+                        }
                     }
                 }
             }
@@ -323,6 +352,12 @@ void game_update(GameState* game_state, f32 delta) {
             }
         }
 
+    }
+
+    // player update:
+    game_state->player->hunger += PLAYER_HUNGER_TICK * delta;
+    if (game_state->player->hunger >= PLAYER_HUNGER_MAX) {
+        game_state->game_over = true;
     }
 
     ARRAYLIST_FOREACHI(game_state->entities, i, Entity, e) {
@@ -368,6 +403,127 @@ void game_update(GameState* game_state, f32 delta) {
         game_state->obstacle_spawn_timer -= game_state->obstacle_spawn_interval;
     }
 
+    if (input_keydown(GLFW_KEY_LEFT_CONTROL) && input_keyjustdown(GLFW_KEY_DOWN)) {
+        font_size -= 0.005;
+    }
+    
+    if (input_keydown(GLFW_KEY_LEFT_CONTROL) && input_keyjustdown(GLFW_KEY_UP)) {
+        font_size += 0.005;
+    }
+
+
+game_paused_actions:
+    game_state->update_count++;
+    ui_set_framecount(game_state->update_count);
+
+    // :ui_game_over
+    if (game_state->game_over) {
+        window_enable_cursor(true);
+
+        f32 button_width = 0.35;
+        f32 button_height = 0.1;
+        f32 button_padding_y = 0.05;
+        f32 x = 0.5 - button_width / 2.0;
+        f32 y = 0.7;
+        
+        ui_label("game_over.label", "Game over!", (vec2){0, y}, (vec2){1, button_height}, font_size);
+        y -= button_height + button_padding_y;
+        snprintf(game_state->score_label_buffer, sizeof(game_state->score_label_buffer), "Final score: %d", game_state->score);
+        ui_label("game_over_score.label", game_state->score_label_buffer, (vec2){0, y}, (vec2){1, button_height}, font_size / 2);
+        y -= button_height + button_padding_y;
+
+        UIWidget* try_again = ui_button("gameover.retry", "Retry?", (vec2){x, y}, (vec2){button_width, button_height}, font_size);
+        
+        glm_vec3_copy(COLOR_ORANGE, try_again->background_color);
+        if (try_again->active) {
+            game_state->game_over = false;
+            game_state->player->health = PLAYER_HEALTH_MAX;
+            game_state->player->hunger = 0.0;
+            game_state->player->position[0] = 0.0;
+            game_state->player->position[2] = 2.0;
+            
+            game_state->camera_front[0] = 0.0;
+            game_state->camera_front[1] = 0.0;
+            game_state->camera_front[2] = -1.0;
+
+            game_state->score = 0;
+
+            ARRAYLIST_FOREACH(game_state->entities, Entity, entity) {
+                EntityTag tag = entity->tag;
+                if (tag == EntityTag_Fruit || tag == EntityTag_Obstacle) {
+                    arraylist_remove(&game_state->entities, index);
+                    index--;
+                }
+            }
+
+            window_enable_cursor(false);
+        }
+        
+        y -= button_height + button_padding_y;
+
+        UIWidget* quit = ui_button("gameover.quit", "Quit", (vec2){x, y}, (vec2){button_width, button_height}, font_size);
+        glm_vec3_copy(COLOR_ORANGE, quit->background_color);
+        if (quit->active) {
+            game_state->quiting = true;
+        }
+    }
+
+    // :ui_pause
+    if (input_keyjustdown(GLFW_KEY_P) && !game_state->game_over) {
+        game_state->paused = !game_state->paused;
+    }
+
+    if (game_state->paused && !game_state->game_over) {
+        window_enable_cursor(true);
+
+        f32 button_width = 0.35;
+        f32 button_height = 0.1;
+        f32 button_padding_y = 0.05;
+        f32 x = 0.5 - button_width / 2.0;
+        f32 y = 0.7;
+
+        UIWidget* resume = ui_button("pause.resume", "Resume", (vec2){x, y}, (vec2){button_width, button_height}, font_size);
+        glm_vec3_copy(COLOR_ORANGE, resume->background_color);
+        if (resume->active) {
+            game_state->paused = false;
+            window_enable_cursor(false);
+        }
+        
+        y -= button_height + button_padding_y;
+
+        UIWidget* quit = ui_button("pause.quit", "Quit", (vec2){x, y}, (vec2){button_width, button_height}, font_size);
+        glm_vec3_copy(COLOR_ORANGE, quit->background_color);
+        if (quit->active) {
+            game_state->quiting = true;
+        }
+    }
+    else if(!game_state->game_over) {
+        window_enable_cursor(false);
+    }
+
+    // :ui healthbar
+    f32 health_bar_total_width = 0.3;
+
+    UIWidget* health_bar_back = ui_box("healthbar.back", (vec2){0.02, 0.94}, (vec2){health_bar_total_width, 0.06});
+    glm_vec3_copy(COLOR_WHITE, health_bar_back->background_color);
+
+    f32 width_per_health = (health_bar_total_width - 0.02) / (f32)PLAYER_HEALTH_MAX;
+    UIWidget* health_bar_front = ui_box("healthbar.front", (vec2){0.03, 0.95}, (vec2){ width_per_health * (f32)game_state->player->health, 0.04});
+    glm_vec3_copy(COLOR_GREEN, health_bar_front->background_color);
+    
+    UIWidget* hunger_bar_back = ui_box("hungerbar.back", (vec2){0.02, 0.87}, (vec2){health_bar_total_width, 0.06});
+    glm_vec3_copy(COLOR_WHITE, hunger_bar_back->background_color);
+
+    f32 width_per_hunger = health_bar_total_width / (f32)PLAYER_HUNGER_MAX;
+    UIWidget* hunger_bar_front = ui_box("hungerbar.front", (vec2){0.03, 0.88}, (vec2){ health_bar_total_width - (game_state->player->hunger * width_per_hunger) - 0.02, 0.04});
+    glm_vec3_copy(COLOR_ORANGE, hunger_bar_front->background_color);
+    
+    if (!game_state->paused && !game_state->game_over) {
+        // :ui_score
+        snprintf(game_state->score_label_buffer, sizeof(game_state->score_label_buffer), "Score: %d", game_state->score);
+        ui_label("score.label", game_state->score_label_buffer, (vec2){0.75, 0.95}, (vec2){0.1, 0.1}, font_size / 2);
+    }
+
     // :timers
     game_state->print_timer += delta;
 
@@ -388,6 +544,11 @@ void game_render(GameState* game_state, RenderState* render_state, f32 delta) {
     }
     
     render_flush(render_state, render_state->shader);
+    shader_unbind();
+    vertexarray_unbind();
+
+    ui_set_framecount(game_state->update_count);
+    ui_render();
 }
 
 boolean entity_render(RenderState* render_state, Entity* entity) {
@@ -574,6 +735,7 @@ void spawn_obstacle(GameState* game_state, ObstacleType obstacle_type, vec3 posi
 f32 random_ratio(void) {
     return (float)rand() / (float)RAND_MAX;
 }
+
 
 /* // might come in handy todo
 boolean aabb_ray_intersects(vec3 ray_origin, vec3 ray_direction, BoundingBox* other) {

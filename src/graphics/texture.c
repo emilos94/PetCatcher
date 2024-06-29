@@ -9,7 +9,24 @@ boolean texture_init(Texture* texture, char* path) {
     GL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR));
     GL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));
 
-    GL_CALL(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, texture->width, texture->height, 0, GL_RGB, GL_UNSIGNED_BYTE, data));
+    GLenum format;
+    switch (number_of_channels)
+    {
+    case 1:
+        format = GL_LUMINANCE;
+        break;
+    case 2:
+        format = GL_LUMINANCE_ALPHA;
+        break;
+    case 3:
+        format = GL_RGB;
+        break;
+    case 4:
+        format = GL_RGBA;
+        break;
+    }
+
+    GL_CALL(glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, texture->width, texture->height, 0, format, GL_UNSIGNED_BYTE, data));
     GL_CALL(glGenerateMipmap(GL_TEXTURE_2D));
 
     stbi_image_free(data);

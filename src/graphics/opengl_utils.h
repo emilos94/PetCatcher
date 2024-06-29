@@ -18,7 +18,7 @@ static void GLClearErrors() {
 static boolean GLLogCall(const char* functionName, const char* fileName, int line) {
 	boolean noErrors = true;
 	GLenum error = glGetError();
-	while (error) {
+	while (error != GL_NO_ERROR) {
 		printf("[OpenGL ERROR]: (%d) %s %s %d\n", error, functionName, fileName, line);
 		noErrors = false;
 		GLenum error = glGetError();

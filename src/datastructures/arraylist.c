@@ -21,6 +21,29 @@ void* arraylist_push(ArrayList* list) {
     return ptr;
 }
 
+void* arraylist_peekback(ArrayList* list) {
+    void* ptr = list->data + (list->element_count - 1) * list->element_byte_size;
+    return ptr;
+}
+
+
+void* arraylist_popkback(ArrayList* list) {
+    if (list->element_count <= list->element_capacity / 4) {
+        // resize
+        // todo: might mess up pointer locations if referenced outside of list
+        list->data = realloc(list->data, list->element_byte_size * list->element_capacity / 2);
+        list->element_capacity /= 2;
+    }
+
+    if (list->element_count == 0) {
+        return NULL;
+    }
+
+    void* ptr = list->data + (list->element_count - 1) * list->element_byte_size;
+    list->element_count--;
+    return ptr;
+}
+
 void* arraylist_at(ArrayList* list, u32 index) {
     assert(index < list->element_count);
 
