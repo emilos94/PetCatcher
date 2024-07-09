@@ -78,8 +78,8 @@ int main(void) {
 cleanup:
     shader_destroy(render_state.shader);
     renderpipe_destroy(&render_state.render_pipe);
+    shadowrender_destroy(&render_state.shadow_render);
     ui_destroy();
     window_destroy();
-
     return 0;
 }

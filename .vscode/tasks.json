@@ -10,6 +10,7 @@
                 "${workspaceFolder}\\src\\*.c",
                 "${workspaceFolder}\\src\\core\\*.c",
                 "${workspaceFolder}\\src\\graphics\\*.c",
+                "${workspaceFolder}\\src\\graphics\\shadows\\*.c",
                 "${workspaceFolder}\\src\\datastructures\\*.c",
                 "${workspaceFolder}\\src\\ui\\*.c",
                 "-I",

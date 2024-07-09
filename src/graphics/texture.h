@@ -8,6 +8,7 @@
 struct Texture {
     GLuint handle;
     u32 width, height;
+    char* data;
 };
 typedef struct Texture Texture;
 
