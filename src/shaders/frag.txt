@@ -9,7 +9,8 @@ flat in int pass_index;
 uniform vec3 colors[20];
 uniform float use_colors[20];
 uniform float use_textures[20];
-uniform sampler2D texture_sampler;
+
+uniform sampler2D shadow_map;
 
 uniform float ambient_strength;
 uniform vec3 light_color;

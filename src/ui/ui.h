@@ -23,7 +23,8 @@ enum UIFlag {
     UIFlag_RenderBackground = 1 << 0,
     UIFlag_Text = 1 << 1,
     UIFlag_Clickable = 1 << 2,
-    UIFlag_Hoverable = 1 << 3
+    UIFlag_Hoverable = 1 << 3,
+    UIFlag_Texture = 1 << 4
 };
 
 struct UIWidget {
@@ -47,6 +48,9 @@ struct UIWidget {
     boolean text_center_x, text_center_y;
     f32 font_size;
 
+    Texture texture;
+    boolean owns_texture;
+
     vec2 rel_position, rel_size;
 
     u64 last_frame;
@@ -60,6 +64,7 @@ void ui_pop_color();
 UIWidget* ui_box(char* id, vec2 position, vec2 size);
 UIWidget* ui_label(char* id, char* text, vec2 position, vec2 size, f32 font_size);
 UIWidget* ui_button(char* id, char* text, vec2 position, vec2 size, f32 font_size);
+UIWidget* ui_texture(char* id, Texture texture, vec2 position, vec2 size);
 
 boolean ui_init(void);
 void ui_render(void);
