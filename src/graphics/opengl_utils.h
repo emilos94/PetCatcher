@@ -4,6 +4,7 @@
 #include <glad/glad.h>
 #include <stdio.h>
 #include "core/core.h"
+#include "assert.h"
 
 #define GL_ASSERT_NO_ERRORS(blockName) assert(GLLogCall(blockName, __FILE__, __LINE__))
 

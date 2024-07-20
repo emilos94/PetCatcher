@@ -10,8 +10,6 @@ boolean shadowshader_init(ShadowShader* shadowshader) {
     shadowshader->projection_matrix_location = shader_uniform_location(shadowshader->handle, "projection_matrix");
     shadowshader->view_matrix_location = shader_uniform_location(shadowshader->handle, "view_matrix");
 
-    shader_unbind();
-
     return true;
 }
 

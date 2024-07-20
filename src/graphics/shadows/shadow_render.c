@@ -18,8 +18,8 @@ boolean shadowrender_init(ShadowRender* render, u32 vertex_capacity, u32 entity_
     render->positions_count = vertex_capacity * 3;
     render->model_matrices = malloc(sizeof(f32) * entity_capacity * 16);
     render->model_matrices_count = entity_capacity * 16;
-    render->ids = malloc(sizeof(u32) * entity_capacity);
-    render->ids_count = entity_capacity;
+    render->ids = malloc(sizeof(u32) * vertex_capacity);
+    render->ids_count = vertex_capacity;
 
     vertexarray_initialise(&render->vao);
     vertexarray_addbufferf(
@@ -87,6 +87,9 @@ boolean render_shadow_entity(ShadowRender* render, Entity* entity, vec3 light_po
         for (int i = 0; i < mesh->position_count / 3; i++) {
             render->ids[vertex_offset + i] = render->entity_count;
         }
+
+        render->entity_count++;
+        render->vertex_count += mesh_vertex_count;
     }
 }
 
@@ -118,6 +121,8 @@ void shadowrender_flush(ShadowRender* render, vec3 light_position, vec3 light_di
     vertexarray_unbind();
     framebuffer_unbind();
     glViewport(0, 0, window_width(), window_height());
+    render->vertex_count = 0;
+    render->entity_count = 0;
 }
 
 void shadowrender_destroy(ShadowRender* render) {

@@ -219,7 +219,7 @@ boolean ui_init(void) {
         return false;
     }
 
-    if (!texture_init(&ui_render_state.texture_default, "textures/white_1x1.png")) {
+    if (!texture_init(&ui_render_state.texture_default, "../res/textures/white_1x1.png")) {
         printf("Failed to load default texture in ui render\n");
         return false;
     }
@@ -385,6 +385,7 @@ void _ui_render_flush(u32 indices_count) {
     GL_CALL(glBindTexture(GL_TEXTURE_2D, 0));
     
     for (int i = 1; i < ui_render_state.texture_count; i++) {
+        ui_render_state.texture_handles[i] = 0;
         GL_CALL(glActiveTexture(GL_TEXTURE0 + i));
         GL_CALL(glBindTexture(GL_TEXTURE_2D, 0));
     }
@@ -526,6 +527,7 @@ void ui_render(void) {
                 (vec2){widget->position[0], widget->position[1]},
                 (vec2){widget->position[0] + widget->size[0], widget->position[1] + widget->size[1]}
             );
+            _ui_set_backgroundcolor(colors_offset, (vec3){1.0, 1.0, 1.0});
 
             colors_offset += 12;
             positions_offset += 8;

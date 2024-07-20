@@ -33,11 +33,6 @@ boolean renderstate_init(RenderState* render_state) {
         printf("[ERROR] failed to initialise render pipe\n");
         return false;
     }
-
-    if (!shadowrender_init(&render_state->shadow_render, vertex_capacity, entity_capacity)) {
-        printf("[ERROR] failed to initialise shadow render\n");
-        return false;
-    }
     
     { // view and projection matrix
         glm_mat4_identity(render_state->projection_matrix);
@@ -75,6 +70,14 @@ boolean renderstate_init(RenderState* render_state) {
     render_state->ambient_strenth_location = shader_uniform_location(render_state->shader, "ambient_strength");
     render_state->ambient_strength = 0.4;
     shader_uniform_f32(render_state->ambient_strenth_location, render_state->ambient_strength);
+    shader_unbind();
+#if 0
+    if (!shadowrender_init(&render_state->shadow_render, vertex_capacity, entity_capacity)) {
+        printf("[ERROR] failed to initialise shadow render\n");
+        return false;
+    }
+#endif
+    shader_unbind();
 }
 
 
@@ -542,19 +545,19 @@ void game_render(GameState* game_state, RenderState* render_state, f32 delta) {
     // shadows
     vec3 light_direction = GLM_VEC3_ZERO_INIT;
     glm_vec3_sub(render_state->light_position, GLM_VEC3_ZERO, light_direction);
-
+    if (0)
     {
-    ARRAYLIST_FOREACH(game_state->entities, Entity, entity) {
-        if (entity->flags & EntityFlag_Render) {
-            render_shadow_entity(&render_state->shadow_render, entity, render_state->light_position, light_direction);
+        GL_CALL(glClear(GL_DEPTH_BUFFER_BIT));
+        ARRAYLIST_FOREACH(game_state->entities, Entity, entity) {
+            if (entity->flags & EntityFlag_Render) {
+                render_shadow_entity(&render_state->shadow_render, entity, render_state->light_position, light_direction);
+            }
         }
-    }
-    shadowrender_flush(&render_state->shadow_render,  render_state->light_position, light_direction);
+        shadowrender_flush(&render_state->shadow_render,  render_state->light_position, light_direction);
     }
 
     // scene
     shader_bind(render_state->shader);
-    texture_bind(&render_state->shadow_render.fbo.texture);
     ARRAYLIST_FOREACH(game_state->entities, Entity, entity) {
         if (entity->flags & EntityFlag_Render) {
             entity_render(render_state, entity);
@@ -567,7 +570,7 @@ void game_render(GameState* game_state, RenderState* render_state, f32 delta) {
 
     // ui
     ui_set_framecount(game_state->update_count);
-    ui_texture("testimage", render_state->shadow_render.fbo.texture, (vec2){0, 0}, (vec2){0.25, 0.25});
+    //ui_texture("testimage", render_state->shadow_render.fbo.texture, (vec2){0, 0}, (vec2){0.25, 0.25});
     ui_render();
 }
 
