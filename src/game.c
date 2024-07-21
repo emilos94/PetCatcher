@@ -22,12 +22,12 @@ boolean entity_queued_for_deletion(Entity* e);
 
 boolean renderstate_init(RenderState* render_state) {
     if (!shader_initialise(&render_state->shader, "shaders/vert.txt", "shaders/frag.txt")) {
-        printf("[ERROR] failed to initialise shader");
+        log_msg("[ERROR] failed to initialise shader");
         return false;
     }
 
     if (!renderpipe_init(&render_state->render_pipe, 1000, 20)) {
-        printf("[ERROR] failed to initialise render pipe");
+        log_msg("[ERROR] failed to initialise render pipe");
         return false;
     }
     
@@ -74,6 +74,11 @@ boolean renderstate_init(RenderState* render_state) {
 
 boolean gamestate_init(GameState* game_state) {
     arraylist_initialise(&game_state->entities, 100, sizeof(Entity));
+
+    if (!texture_init(&game_state->test_texture, "../res/textures/apollo-8x.png")) {
+        log_msg("[ERROR] Failed to load test texture\n");
+        return false;
+    }
 
     { // :player
         Entity* player = arraylist_push(&game_state->entities);
@@ -129,7 +134,8 @@ boolean gamestate_init(GameState* game_state) {
         game_state->gravity = 0.04;
         game_state->ground_height = 0.0;
         game_state->score = 0;
-        game_state->print_timer = 0.0;
+        game_state->second_timer = 0.0;
+        game_state->fps = 0;
     }
 
     { // :spawn 
@@ -504,6 +510,8 @@ game_paused_actions:
     // :ui healthbar
     f32 health_bar_total_width = 0.3;
 
+    //ui_texture("test.texture", &game_state->test_texture, (vec2){0, 0}, (vec2){0.5, 0.5});
+
     UIWidget* health_bar_back = ui_box("healthbar.back", (vec2){0.02, 0.94}, (vec2){health_bar_total_width, 0.06});
     glm_vec3_copy(COLOR_WHITE, health_bar_back->background_color);
 
@@ -525,10 +533,8 @@ game_paused_actions:
     }
 
     // :timers
-    game_state->print_timer += delta;
-
-    if (game_state->print_timer >= 1.0) {
-        game_state->print_timer -= 1.0;
+    if (game_state->second_timer >= 1.0) {
+        log_msg("FPS: %d\n", game_state->fps);
     }
 }
 

@@ -3,6 +3,7 @@
 
 #include "graphics/opengl_utils.h"
 #include "core/core.h"
+#include "core/log.h"
 #include "stb/stb_image.h"
 
 struct Texture {

@@ -48,6 +48,7 @@ int main(void) {
         f32 elapsed_time = current_time - last_time;
         accumulator_time += elapsed_time;
         last_time = current_time;
+        game_state.second_timer += elapsed_time;
 
         // input
         if (input_keydown(GLFW_KEY_ESCAPE)) {
@@ -63,9 +64,14 @@ int main(void) {
         // update
         if (accumulator_time > seconds_per_frame) {
             accumulator_time -= seconds_per_frame;
-
+            game_state.fps++;
             game_update(&game_state, seconds_per_frame);        
             input_endframe();
+        }
+
+        if (game_state.second_timer >= 1.0) {
+            game_state.fps = 0;
+            game_state.second_timer -= 1.0;
         }
 
         // render
@@ -79,6 +85,7 @@ cleanup:
     shader_destroy(render_state.shader);
     renderpipe_destroy(&render_state.render_pipe);
     ui_destroy();
+    texture_destroy(&game_state.test_texture);
     window_destroy();
 
     return 0;
