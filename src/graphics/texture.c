@@ -5,6 +5,10 @@ boolean texture_init(Texture* texture, char* path) {
     GL_CALL(glBindTexture(GL_TEXTURE_2D, texture->handle));
     int number_of_channels = 0;
     char* data = stbi_load(path, &texture->width, &texture->height, &number_of_channels, 0);
+    if (!data) {
+        log_msg("[ERROR] Failed to load texture with path %s\n", path);
+        return false;
+    }
 
     GL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR));
     GL_CALL(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR));

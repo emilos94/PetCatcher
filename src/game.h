@@ -126,13 +126,16 @@ struct GameState {
     f32 obstacle_spawn_timer, obstacle_spawn_interval;
 
     // misc
-    f32 print_timer;
+    f32 second_timer;
+    u32 fps;
     u64 update_count;
 
     // flags
     boolean paused;
     boolean quiting;
     boolean game_over;
+
+    Texture test_texture;
 };
 typedef struct GameState GameState;
 

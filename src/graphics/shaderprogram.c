@@ -67,6 +67,10 @@ void shader_uniform_f32(int location, f32 value) {
     GL_CALL(glUniform1f(location, value));
 }
 
+void shader_uniform_intv(int location, int* values, u32 count) {
+    GL_CALL(glUniform1iv(location, count, values));
+}
+
 void shader_uniform_vec3n(int location, f32* values, u32 count) {
     GL_CALL(glUniform3fv(location, count, values));
 }

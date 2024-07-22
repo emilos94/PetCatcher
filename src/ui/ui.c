@@ -10,6 +10,9 @@ ArrayList color_list;
 #define UI_RENDER_STATE_CAPACITY 100
 #define UI_RENDER_STATE_TEXT_VERTEX_CAPACITY 600
 
+// todo: perhaps figure out the number dynamically depending on drivers
+#define UI_MAX_TEXTURE_HANDLES 16
+
 // forward declarations
 UIWidget* _ui_findbyid(char* id);
 UIWidget* _ui_widget_create(char* id, u32 flags);
@@ -20,6 +23,7 @@ f32 _ui_text_width(FontFileResult* font, UIWidget* widget);
 f32 _ui_text_height(FontFileResult* font, UIWidget* widget);
 void _ui_fill_quad_into(f32* destination, u32 offset, vec2 top_left, vec2 bottom_right);
 void _ui_text_flush(u32 indices_count);
+void _ui_wiget_fill_color(u32 colors_offset, vec3 color);
 
 struct UIRenderState {
     ShaderProgram shader;
@@ -34,6 +38,18 @@ struct UIRenderState {
 
     f32* colors;
     u32 colors_count;
+
+    // texture state
+    f32* uvs;
+    u32 uvs_count;
+
+    u32* texture_indexes;
+    u32 texture_index_count;
+
+    u32 texture_handles[UI_MAX_TEXTURE_HANDLES];
+    u32 texture_handle_count;
+
+    Texture texture_default;
 
     // text
     ShaderProgram shader_text;
@@ -128,6 +144,24 @@ UIWidget* ui_button(char* id, char* text, vec2 position, vec2 size, f32 font_siz
     return widget;
 }
 
+UIWidget* ui_texture(char* id, Texture* texture, vec2 position, vec2 size) {
+    UIWidget* widget = _ui_findbyid(id);
+    if (!widget) {
+        widget = _ui_widget_create(id, UIFlag_Clickable | UIFlag_Hoverable | UIFlag_RenderTexture);
+    }
+
+    widget->last_frame = frame_count[0];
+
+    glm_vec2_copy(position, widget->position);
+    glm_vec2_copy(size, widget->size);
+    
+    _ui_widget_check_interaction(widget);
+
+    widget->texture = texture;
+
+    return widget;
+}
+
 UIWidget* _ui_widget_create(char* id, u32 flags) {
     UIWidget* widget = arraylist_push(&widgets);
     memset(widget, 0, sizeof(UIWidget));
@@ -174,25 +208,67 @@ boolean ui_init(void) {
     arraylist_initialise(&widgets, 100, sizeof(UIWidget));
 
     if (!shader_initialise(&ui_render_state.shader, "shaders/ui_vert.txt", "shaders/ui_frag.txt")) {
-        printf("Failed to load ui shader program!\n");
+        log_msg("Failed to load ui shader program!\n");
         return false;
     }
 
+    int samplers[UI_MAX_TEXTURE_HANDLES];
+    for (int i = 0; i < UI_MAX_TEXTURE_HANDLES; i++) {
+        samplers[i] = i;
+    }
+    
+    shader_bind(ui_render_state.shader);
+    int sampler_array_location = shader_uniform_location(ui_render_state.shader, "textures");
+    shader_uniform_intv(sampler_array_location, samplers, UI_MAX_TEXTURE_HANDLES);
+    shader_unbind();
+
     if (!file_loadfont(&ui_render_state.font, "../res/fonts/candara.fnt", "../res/fonts/candara.png")) {
-        printf("Failed to load font!\n");
+        log_msg("Failed to load font!\n");
         return false;
     }
 
     if (!shader_initialise(&ui_render_state.shader_text, "shaders/text_vert.txt", "shaders/text_frag.txt")) {
-        printf("Failed to load text shader program!\n");
+        log_msg("Failed to load text shader program!\n");
         return false;
     }
+
 
     ui_render_state.positions_count = UI_RENDER_STATE_CAPACITY * 2 * 4;
     ui_render_state.positions = malloc(sizeof(f32) * ui_render_state.positions_count);
 
     ui_render_state.colors_count = UI_RENDER_STATE_CAPACITY * 3 * 4;
     ui_render_state.colors = malloc(sizeof(f32) * ui_render_state.colors_count);
+    
+    ui_render_state.uvs_count = UI_RENDER_STATE_CAPACITY * 2 * 4;
+    ui_render_state.uvs = malloc(sizeof(f32) * ui_render_state.uvs_count);
+
+    for (int i = 0; i < ui_render_state.uvs_count; i+=8) {
+        ui_render_state.uvs[i+0] = 0.0;
+        ui_render_state.uvs[i+1] = 1.0;
+
+        ui_render_state.uvs[i+2] = 1.0;
+        ui_render_state.uvs[i+3] = 1.0;
+
+        ui_render_state.uvs[i+4] = 1.0;
+        ui_render_state.uvs[i+5] = 0.0;
+
+        ui_render_state.uvs[i+6] = 0.0;
+        ui_render_state.uvs[i+7] = 0.0;
+    }
+    
+    ui_render_state.texture_index_count = UI_RENDER_STATE_CAPACITY * 1 * 4;
+    ui_render_state.texture_indexes = malloc(sizeof(f32) * ui_render_state.texture_index_count);
+
+    for (int i = 0; i < ui_render_state.texture_index_count; i++) {
+        ui_render_state.texture_indexes[i] = 0;
+    }
+
+    ui_render_state.texture_handle_count = 1;
+
+    if (!texture_init(&ui_render_state.texture_default, "../res/textures/white16_16.png")) {
+        printf("[ERROR] Failed to load ui state default texture\n");
+        return false;
+    }
 
     ui_render_state.text_indices_count = UI_RENDER_STATE_TEXT_VERTEX_CAPACITY;
     ui_render_state.text_indices = malloc(sizeof(u32) * ui_render_state.text_indices_count);
@@ -259,11 +335,22 @@ boolean ui_init(void) {
         0
     );
 
-    arraylist_initialise(&color_list, 10, sizeof(vec3));
-    f32* default_color = arraylist_push(&color_list);
-    default_color[0] = 0.0;
-    default_color[1] = 1.0;
-    default_color[2] = 1.0;
+    vertexarray_addbufferf(
+        &ui_render_state.vertex_array,
+        ui_render_state.uvs,
+        ui_render_state.uvs_count,
+        GL_DYNAMIC_DRAW,
+        2,
+        0
+    );
+
+    vertexarray_addbufferi(
+        &ui_render_state.vertex_array,
+        ui_render_state.texture_indexes,
+        ui_render_state.texture_index_count,
+        GL_DYNAMIC_DRAW,
+        1
+    );
 
     return true;
 }
@@ -289,8 +376,40 @@ void _ui_render_flush(u32 indices_count) {
         ui_render_state.colors,
         element_count * 12
     );
+    
+    vertexarray_buffersubdata_f(
+        &ui_render_state.vertex_array,
+        2,
+        ui_render_state.uvs,
+        element_count * 8
+    );
+
+    vertexarray_buffersubdata_i(
+        &ui_render_state.vertex_array,
+        3,
+        ui_render_state.texture_indexes,
+        element_count * 4
+    );
+
+    GL_CALL(glActiveTexture(GL_TEXTURE0));
+    GL_CALL(glBindTexture(GL_TEXTURE_2D, ui_render_state.texture_default.handle));
+
+    for (int i = 1; i < ui_render_state.texture_handle_count; i++) {
+        GL_CALL(glActiveTexture(GL_TEXTURE0 + i));
+        GL_CALL(glBindTexture(GL_TEXTURE_2D, ui_render_state.texture_handles[i]));
+    }
 
     GL_CALL(glDrawElements(GL_TRIANGLES, indices_count, GL_UNSIGNED_INT, NULL));
+
+    // unbind textures    
+    GL_CALL(glActiveTexture(GL_TEXTURE0));
+    GL_CALL(glBindTexture(GL_TEXTURE_2D, 0));
+
+    for (int i = 1; i < ui_render_state.texture_handle_count; i++) {
+        GL_CALL(glActiveTexture(GL_TEXTURE0 + i));
+        GL_CALL(glBindTexture(GL_TEXTURE_2D, 0));
+    }
+    ui_render_state.texture_handle_count = 1;
 
     shader_unbind();
     vertexarray_unbind();
@@ -319,46 +438,30 @@ void ui_render(void) {
     
     GL_CALL(glDisable(GL_DEPTH_TEST));
 
-    u32 positions_offset = 0, indices_count = 0, colors_offset = 0;
+    u32 positions_offset = 0, indices_count = 0, colors_offset = 0, texture_indexes_offset = 0;
     
     u32 text_pos_offset = 0, text_uvs_offset = 0, text_indices_count = 0;
     ARRAYLIST_FOREACH(widgets, UIWidget, widget) {
-        if (widget->flags & UIFlag_RenderBackground) {
+        if (widget->flags & UIFlag_RenderBackground || widget->flags & UIFlag_RenderTexture) {
             _ui_fill_quad_into(
                 ui_render_state.positions,
                 positions_offset,
                 (vec2){widget->position[0], widget->position[1]},
                 (vec2){widget->position[0] + widget->size[0], widget->position[1] + widget->size[1]}
             );
-
-            // background color
-            ui_render_state.colors[colors_offset + 0] = widget->background_color[0];
-            ui_render_state.colors[colors_offset + 1] = widget->background_color[1];
-            ui_render_state.colors[colors_offset + 2] = widget->background_color[2];
-
-            ui_render_state.colors[colors_offset + 3] = widget->background_color[0];
-            ui_render_state.colors[colors_offset + 4] = widget->background_color[1];
-            ui_render_state.colors[colors_offset + 5] = widget->background_color[2];
-
-            ui_render_state.colors[colors_offset + 6] = widget->background_color[0];
-            ui_render_state.colors[colors_offset + 7] = widget->background_color[1];
-            ui_render_state.colors[colors_offset + 8] = widget->background_color[2];
-
-            ui_render_state.colors[colors_offset + 9] = widget->background_color[0];
-            ui_render_state.colors[colors_offset + 10] = widget->background_color[1];
-            ui_render_state.colors[colors_offset + 11] = widget->background_color[2];
-
-            colors_offset += 12;
+            
             positions_offset += 8;
             indices_count += 6;
-
-            if (positions_offset >= ui_render_state.positions_count) {
-                _ui_render_flush(indices_count);
-                positions_offset = 0;
-                colors_offset = 0;
-                indices_count = 0;
-            }
         }
+
+        if (widget->flags & UIFlag_RenderBackground) {
+            _ui_wiget_fill_color(colors_offset, widget->background_color);
+        }
+        else {
+            _ui_wiget_fill_color(colors_offset, GLM_VEC3_ONE);
+        }
+        
+        colors_offset += 12;
 
         if (widget->flags & UIFlag_Text) {
             f32 x_offset = widget->position[0], y_offset = widget->position[1];
@@ -432,6 +535,35 @@ void ui_render(void) {
 
             // add counter in state
         }
+
+        u32 texture_index = 0;
+        if (widget->flags & UIFlag_RenderTexture) {
+            for (int i = 1; i < ui_render_state.texture_handle_count; i++) {
+                if (ui_render_state.texture_handles[i] == widget->texture->handle) {
+                    texture_index = i;
+                }
+            }
+
+            boolean texture_not_registered = texture_index == 0;
+            if (texture_not_registered) {
+                ui_render_state.texture_handles[ui_render_state.texture_handle_count] = widget->texture->handle;
+                texture_index = ui_render_state.texture_handle_count;
+                ui_render_state.texture_handle_count++;
+            }
+        }
+
+        for (int i = 0; i < 4; i++) {
+            ui_render_state.texture_indexes[texture_indexes_offset + i] = texture_index;
+        }
+        texture_indexes_offset += 4;
+
+        if (positions_offset >= ui_render_state.positions_count || ui_render_state.texture_handle_count >= UI_MAX_TEXTURE_HANDLES) {
+            _ui_render_flush(indices_count);
+            positions_offset = 0;
+            colors_offset = 0;
+            indices_count = 0;
+            texture_indexes_offset = 0;
+        }
     }
 
     _ui_render_flush(indices_count);
@@ -452,6 +584,9 @@ void ui_destroy(void) {
     free(ui_render_state.positions);
     free(ui_render_state.colors);
     free(ui_render_state.indices);
+    free(ui_render_state.uvs);
+    free(ui_render_state.texture_indexes);
+    texture_destroy(&ui_render_state.texture_default);
 
     free(ui_render_state.text_positions);
     free(ui_render_state.text_uvs);
@@ -527,7 +662,6 @@ f32 _ui_text_height(FontFileResult* font, UIWidget* widget) {
     return result;
 }
 
-
 void _ui_fill_quad_into(f32* destination, u32 offset, vec2 top_left, vec2 bottom_right) {
     // top left
     destination[offset + 0] = top_left[0];
@@ -551,6 +685,7 @@ void _ui_text_flush(u32 indices_count) {
 
     shader_bind(ui_render_state.shader_text);
     vertexarray_bind(&ui_render_state.text_vertex_array);
+    GL_CALL(glActiveTexture(GL_TEXTURE0));
     texture_bind(&ui_render_state.font.texture);
 
     u32 element_count = indices_count / 6;
@@ -573,4 +708,23 @@ void _ui_text_flush(u32 indices_count) {
 
     shader_unbind();
     vertexarray_unbind();
+}
+
+void _ui_wiget_fill_color(u32 colors_offset, vec3 color) {
+    // background color
+    ui_render_state.colors[colors_offset + 0] = color[0];
+    ui_render_state.colors[colors_offset + 1] = color[1];
+    ui_render_state.colors[colors_offset + 2] = color[2];
+
+    ui_render_state.colors[colors_offset + 3] = color[0];
+    ui_render_state.colors[colors_offset + 4] = color[1];
+    ui_render_state.colors[colors_offset + 5] = color[2];
+
+    ui_render_state.colors[colors_offset + 6] = color[0];
+    ui_render_state.colors[colors_offset + 7] = color[1];
+    ui_render_state.colors[colors_offset + 8] = color[2];
+
+    ui_render_state.colors[colors_offset + 9] = color[0];
+    ui_render_state.colors[colors_offset + 10] = color[1];
+    ui_render_state.colors[colors_offset + 11] = color[2];
 }
