@@ -9,6 +9,8 @@ ArrayList color_list;
 
 #define UI_RENDER_STATE_CAPACITY 100
 #define UI_RENDER_STATE_TEXT_VERTEX_CAPACITY 600
+
+// todo: perhaps figure out the number dynamically depending on drivers
 #define UI_MAX_TEXTURE_HANDLES 16
 
 // forward declarations
@@ -210,6 +212,16 @@ boolean ui_init(void) {
         return false;
     }
 
+    int samplers[UI_MAX_TEXTURE_HANDLES];
+    for (int i = 0; i < UI_MAX_TEXTURE_HANDLES; i++) {
+        samplers[i] = i;
+    }
+    
+    shader_bind(ui_render_state.shader);
+    int sampler_array_location = shader_uniform_location(ui_render_state.shader, "textures");
+    shader_uniform_intv(sampler_array_location, samplers, UI_MAX_TEXTURE_HANDLES);
+    shader_unbind();
+
     if (!file_loadfont(&ui_render_state.font, "../res/fonts/candara.fnt", "../res/fonts/candara.png")) {
         log_msg("Failed to load font!\n");
         return false;
@@ -219,6 +231,7 @@ boolean ui_init(void) {
         log_msg("Failed to load text shader program!\n");
         return false;
     }
+
 
     ui_render_state.positions_count = UI_RENDER_STATE_CAPACITY * 2 * 4;
     ui_render_state.positions = malloc(sizeof(f32) * ui_render_state.positions_count);
@@ -231,20 +244,24 @@ boolean ui_init(void) {
 
     for (int i = 0; i < ui_render_state.uvs_count; i+=8) {
         ui_render_state.uvs[i+0] = 0.0;
-        ui_render_state.uvs[i+1] = 0.0;
+        ui_render_state.uvs[i+1] = 1.0;
 
         ui_render_state.uvs[i+2] = 1.0;
-        ui_render_state.uvs[i+3] = 0.0;
+        ui_render_state.uvs[i+3] = 1.0;
 
         ui_render_state.uvs[i+4] = 1.0;
-        ui_render_state.uvs[i+5] = 1.0;
+        ui_render_state.uvs[i+5] = 0.0;
 
         ui_render_state.uvs[i+6] = 0.0;
-        ui_render_state.uvs[i+7] = 1.0;
+        ui_render_state.uvs[i+7] = 0.0;
     }
     
     ui_render_state.texture_index_count = UI_RENDER_STATE_CAPACITY * 1 * 4;
     ui_render_state.texture_indexes = malloc(sizeof(f32) * ui_render_state.texture_index_count);
+
+    for (int i = 0; i < ui_render_state.texture_index_count; i++) {
+        ui_render_state.texture_indexes[i] = 0;
+    }
 
     ui_render_state.texture_handle_count = 1;
 
@@ -382,9 +399,17 @@ void _ui_render_flush(u32 indices_count) {
         GL_CALL(glBindTexture(GL_TEXTURE_2D, ui_render_state.texture_handles[i]));
     }
 
-    ui_render_state.texture_handle_count = 1;
-
     GL_CALL(glDrawElements(GL_TRIANGLES, indices_count, GL_UNSIGNED_INT, NULL));
+
+    // unbind textures    
+    GL_CALL(glActiveTexture(GL_TEXTURE0));
+    GL_CALL(glBindTexture(GL_TEXTURE_2D, 0));
+
+    for (int i = 1; i < ui_render_state.texture_handle_count; i++) {
+        GL_CALL(glActiveTexture(GL_TEXTURE0 + i));
+        GL_CALL(glBindTexture(GL_TEXTURE_2D, 0));
+    }
+    ui_render_state.texture_handle_count = 1;
 
     shader_unbind();
     vertexarray_unbind();
@@ -413,7 +438,7 @@ void ui_render(void) {
     
     GL_CALL(glDisable(GL_DEPTH_TEST));
 
-    u32 positions_offset = 0, indices_count = 0, colors_offset = 0, texture_indexes_offset = 1;
+    u32 positions_offset = 0, indices_count = 0, colors_offset = 0, texture_indexes_offset = 0;
     
     u32 text_pos_offset = 0, text_uvs_offset = 0, text_indices_count = 0;
     ARRAYLIST_FOREACH(widgets, UIWidget, widget) {
@@ -426,11 +451,11 @@ void ui_render(void) {
             );
             
             positions_offset += 8;
+            indices_count += 6;
         }
 
         if (widget->flags & UIFlag_RenderBackground) {
             _ui_wiget_fill_color(colors_offset, widget->background_color);
-            indices_count += 6;
         }
         else {
             _ui_wiget_fill_color(colors_offset, GLM_VEC3_ONE);
@@ -511,8 +536,8 @@ void ui_render(void) {
             // add counter in state
         }
 
+        u32 texture_index = 0;
         if (widget->flags & UIFlag_RenderTexture) {
-            u32 texture_index = 0;
             for (int i = 1; i < ui_render_state.texture_handle_count; i++) {
                 if (ui_render_state.texture_handles[i] == widget->texture->handle) {
                     texture_index = i;
@@ -525,15 +550,12 @@ void ui_render(void) {
                 texture_index = ui_render_state.texture_handle_count;
                 ui_render_state.texture_handle_count++;
             }
-
-            
-            ui_render_state.texture_indexes[texture_indexes_offset] = texture_index;
-        }
-        else {
-            ui_render_state.texture_indexes[texture_indexes_offset] = 0;
         }
 
-        texture_indexes_offset++;
+        for (int i = 0; i < 4; i++) {
+            ui_render_state.texture_indexes[texture_indexes_offset + i] = texture_index;
+        }
+        texture_indexes_offset += 4;
 
         if (positions_offset >= ui_render_state.positions_count || ui_render_state.texture_handle_count >= UI_MAX_TEXTURE_HANDLES) {
             _ui_render_flush(indices_count);
@@ -663,6 +685,7 @@ void _ui_text_flush(u32 indices_count) {
 
     shader_bind(ui_render_state.shader_text);
     vertexarray_bind(&ui_render_state.text_vertex_array);
+    GL_CALL(glActiveTexture(GL_TEXTURE0));
     texture_bind(&ui_render_state.font.texture);
 
     u32 element_count = indices_count / 6;

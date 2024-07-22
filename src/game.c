@@ -75,7 +75,7 @@ boolean renderstate_init(RenderState* render_state) {
 boolean gamestate_init(GameState* game_state) {
     arraylist_initialise(&game_state->entities, 100, sizeof(Entity));
 
-    if (!texture_init(&game_state->test_texture, "../res/textures/apollo-8x.png")) {
+    if (!texture_init(&game_state->test_texture, "../res/fonts/candara.png")) {
         log_msg("[ERROR] Failed to load test texture\n");
         return false;
     }
@@ -510,7 +510,8 @@ game_paused_actions:
     // :ui healthbar
     f32 health_bar_total_width = 0.3;
 
-    //ui_texture("test.texture", &game_state->test_texture, (vec2){0, 0}, (vec2){0.5, 0.5});
+    ui_texture("test.texture", &game_state->test_texture, (vec2){0, 0}, (vec2){0.5, 0.5});
+    ui_texture("test.texture2", &game_state->test_texture, (vec2){0, 0.5}, (vec2){0.5, 0.5});
 
     UIWidget* health_bar_back = ui_box("healthbar.back", (vec2){0.02, 0.94}, (vec2){health_bar_total_width, 0.06});
     glm_vec3_copy(COLOR_WHITE, health_bar_back->background_color);

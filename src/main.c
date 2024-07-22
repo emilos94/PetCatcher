@@ -43,6 +43,7 @@ int main(void) {
 
     boolean mouse_enabled = false;
     f32 accumulator_time = 0.0, last_time = glfwGetTime(), seconds_per_frame = 1.0 / 60.0;
+    u32 renders_per_second = 0;
     while (!game_state.quiting && !window_should_exit()) {
         f32 current_time = glfwGetTime();
         f32 elapsed_time = current_time - last_time;
@@ -65,17 +66,21 @@ int main(void) {
         if (accumulator_time > seconds_per_frame) {
             accumulator_time -= seconds_per_frame;
             game_state.fps++;
-            game_update(&game_state, seconds_per_frame);        
+            game_update(&game_state, seconds_per_frame);
             input_endframe();
         }
 
         if (game_state.second_timer >= 1.0) {
             game_state.fps = 0;
             game_state.second_timer -= 1.0;
+
+            log_msg("Renders/s: %d\n", renders_per_second);
+            renders_per_second = 0;
         }
 
         // render
         game_render(&game_state, &render_state, elapsed_time);
+        renders_per_second++;
         
         window_swapandpoll();
         GL_CALL(glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT));
