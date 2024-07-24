@@ -26,8 +26,10 @@ boolean renderstate_init(RenderState* render_state) {
         return false;
     }
 
-    if (!renderpipe_init(&render_state->render_pipe, 1000, 20)) {
-        log_msg("[ERROR] failed to initialise render pipe");
+    u32 vertex_capacity = 1000;
+    u32 entity_capacity = 20;
+    if (!renderpipe_init(&render_state->render_pipe, vertex_capacity, entity_capacity)) {
+        log_msg("[ERROR] failed to initialise render pipe\n");
         return false;
     }
     
@@ -67,18 +69,20 @@ boolean renderstate_init(RenderState* render_state) {
     render_state->ambient_strenth_location = shader_uniform_location(render_state->shader, "ambient_strength");
     render_state->ambient_strength = 0.4;
     shader_uniform_f32(render_state->ambient_strenth_location, render_state->ambient_strength);
-    
+
+    shader_unbind();
+    if (!shadowrender_init(&render_state->shadow_render, vertex_capacity, entity_capacity)) {
+        printf("[ERROR] failed to initialise shadow render\n");
+        return false;
+    }
+    shader_unbind();
+
     return true;
 }
 
 
 boolean gamestate_init(GameState* game_state) {
     arraylist_initialise(&game_state->entities, 100, sizeof(Entity));
-
-    if (!texture_init(&game_state->test_texture, "../res/fonts/candara.png")) {
-        log_msg("[ERROR] Failed to load test texture\n");
-        return false;
-    }
 
     { // :player
         Entity* player = arraylist_push(&game_state->entities);
@@ -509,10 +513,7 @@ game_paused_actions:
 
     // :ui healthbar
     f32 health_bar_total_width = 0.3;
-
-    ui_texture("test.texture", &game_state->test_texture, (vec2){0, 0}, (vec2){0.5, 0.5});
-    ui_texture("test.texture2", &game_state->test_texture, (vec2){0, 0.5}, (vec2){0.5, 0.5});
-
+     
     UIWidget* health_bar_back = ui_box("healthbar.back", (vec2){0.02, 0.94}, (vec2){health_bar_total_width, 0.06});
     glm_vec3_copy(COLOR_WHITE, health_bar_back->background_color);
 
@@ -540,6 +541,20 @@ game_paused_actions:
 }
 
 void game_render(GameState* game_state, RenderState* render_state, f32 delta) {
+    // shadows
+    vec3 light_direction = GLM_VEC3_ZERO_INIT;
+    glm_vec3_sub(render_state->light_position, GLM_VEC3_ZERO, light_direction);
+
+    {
+        GL_CALL(glClear(GL_DEPTH_BUFFER_BIT));
+        ARRAYLIST_FOREACH(game_state->entities, Entity, entity) {
+            if (entity->flags & EntityFlag_Render) {
+                render_shadow_entity(&render_state->shadow_render, entity, render_state->light_position, light_direction);
+            }
+        }
+        shadowrender_flush(&render_state->shadow_render,  render_state->light_position, light_direction);
+    }
+
     shader_bind(render_state->shader);
     //texture_bind(&texture);
 
@@ -549,11 +564,12 @@ void game_render(GameState* game_state, RenderState* render_state, f32 delta) {
             entity_render(render_state, entity);
         }
     }
-    
     render_flush(render_state, render_state->shader);
+
     shader_unbind();
     vertexarray_unbind();
 
+    ui_texture("shadow_texture", &render_state->shadow_render.fbo.texture, (vec2){0.0, 0.0}, (vec2){0.25, 0.25});
     ui_set_framecount(game_state->update_count);
     ui_render();
 }
