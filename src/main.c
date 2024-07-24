@@ -90,7 +90,7 @@ cleanup:
     shader_destroy(render_state.shader);
     renderpipe_destroy(&render_state.render_pipe);
     ui_destroy();
-    texture_destroy(&game_state.test_texture);
+    shadowrender_destroy(&render_state.shadow_render);
     window_destroy();
 
     return 0;
