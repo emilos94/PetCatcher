@@ -4,6 +4,7 @@
 #include "graphics/render_pipe.h"
 #include "graphics/window.h"
 #include "graphics/framebuffer.h"
+#include "graphics/camera.h"
 #include "ui/ui.h"
 #include "entity.h"
 #include "graphics/shadows/shadow_render.h"
@@ -15,7 +16,7 @@ struct RenderState {
     ShaderProgram shader;
     int view_matrix_location, projection_matrix_location, use_colors_location, use_textures_location,
         colors_location, ambient_strenth_location, light_color_location, light_position_location,
-        model_matrices_location;
+        model_matrices_location, light_view_matrix_location, light_projection_matrix_location;
 
     mat4 view_matrix, projection_matrix;
 
@@ -29,9 +30,7 @@ struct RenderState {
 typedef struct RenderState RenderState;
 
 struct GameState {
-    // camera
-    vec3 camera_front, camera_up;
-    f32 camera_panning_speed, camera_pan_sensitivity, camera_yaw, camera_pitch;
+    Camera camera;
 
     // entities
     ArrayList entities;
@@ -81,6 +80,6 @@ boolean game_loadmap(GameState* game_state, char* path);
 boolean entity_render(RenderState* render_state, Entity* entity);
 boolean render_flush(RenderState* render_state, ShaderProgram shader_program);
 
-void camera_input(GameState* game_state, RenderState* render_state, f32 delta);
+void player_movement(GameState* game_state, RenderState* render_state, f32 delta);
 
 #endif // GAME_H

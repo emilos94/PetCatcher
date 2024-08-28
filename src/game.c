@@ -11,6 +11,11 @@ static vec3 COLOR_WHITE = (vec3) { 1.0, 1.0, 1.0 };
 #define FRUIT_SPAWN_HEIGHT 10.0
 #define OBSTACLE_SPAWN_HEIGHT 15.0
 
+f32 g_field_of_view = 70.0;
+f32 g_near_plane = 0.1;
+f32 g_far_plane = 100;
+vec3 G_UP_VECTOR = { 0.000001, 1.0, 0.0 };
+
 f32 font_size = 0.001;
 
 // :forward declarations
@@ -19,6 +24,7 @@ void spawn_fruit(GameState* game_state, FruitType fruit_type, vec3 position);
 void spawn_obstacle(GameState* game_state, ObstacleType obstacle_type, vec3 position);
 f32 random_ratio(void);
 boolean entity_queued_for_deletion(Entity* e);
+void calculate_bbox_for_visible_entities(GameState* game_state, vec3 min, vec3 max);
 
 boolean renderstate_init(RenderState* render_state) {
     if (!shader_initialise(&render_state->shader, "shaders/vert.txt", "shaders/frag.txt")) {
@@ -36,7 +42,7 @@ boolean renderstate_init(RenderState* render_state) {
     { // view and projection matrix
         glm_mat4_identity(render_state->projection_matrix);
         f32 aspect = window_width() / window_height();
-        glm_perspective(glm_rad(70), aspect, 0.1, 100.0, render_state->projection_matrix);
+        glm_perspective(glm_rad(g_field_of_view), aspect, g_near_plane, g_far_plane, render_state->projection_matrix);
 
         render_state->projection_matrix_location = shader_uniform_location(render_state->shader, "projection_matrix");
         shader_uniform_mat4(render_state->projection_matrix_location, render_state->projection_matrix);
@@ -53,6 +59,8 @@ boolean renderstate_init(RenderState* render_state) {
     render_state->use_colors_location = shader_uniform_location(render_state->shader, "use_colors");
     render_state->use_textures_location = shader_uniform_location(render_state->shader, "use_textures");
     render_state->model_matrices_location = shader_uniform_location(render_state->shader, "model_matrices");
+    render_state->light_projection_matrix_location = shader_uniform_location(render_state->shader, "light_projection_matrix");
+    render_state->light_view_matrix_location = shader_uniform_location(render_state->shader, "light_view_matrix");
 
     render_state->light_color_location = shader_uniform_location(render_state->shader, "light_color");
     render_state->light_color[0] = 0.9;
@@ -61,9 +69,9 @@ boolean renderstate_init(RenderState* render_state) {
     shader_uniform_vec3(render_state->light_color_location, render_state->light_color);
 
     render_state->light_position_location = shader_uniform_location(render_state->shader, "light_position");
-    render_state->light_position[0] = 0.0;
-    render_state->light_position[1] = 10.9;
-    render_state->light_position[2] = -10.9;
+    render_state->light_position[0] = 10000.0;
+    render_state->light_position[1] = 10000.9;
+    render_state->light_position[2] = 10000.9;
     shader_uniform_vec3(render_state->light_position_location, render_state->light_position);
 
     render_state->ambient_strenth_location = shader_uniform_location(render_state->shader, "ambient_strength");
@@ -120,18 +128,7 @@ boolean gamestate_init(GameState* game_state) {
     }
 
     { // :camera
-        game_state->camera_front[0] = 0.0;
-        game_state->camera_front[1] = 0.0;
-        game_state->camera_front[2] = -1.0;
-        
-        game_state->camera_up[0] = 0.0;
-        game_state->camera_up[1] = 1.0;
-        game_state->camera_up[2] = 0.0;
-
-        game_state->camera_panning_speed = 5.0;
-        game_state->camera_pan_sensitivity = 0.02;
-        game_state->camera_yaw = -90.0;
-        game_state->camera_pitch = 0.0;
+        camera_init(&game_state->camera, game_state->player->position, (vec3){0.0, 0.0, 1.0}, (vec3){0.0, 1.0, 0.0}, 5.0, 0.02);
     }
 
     { // :constants
@@ -197,39 +194,16 @@ boolean game_loadmap(GameState* game_state, char* path) {
 }
 
 // :camera
-void camera_input(GameState* game_state, RenderState* render_state, f32 delta) {
+void player_movement(GameState* game_state, RenderState* render_state, f32 delta) {
     if (game_state->paused || game_state->game_over) {
         return;
     }
-    
-    { // panning (look around)
-        game_state->camera_yaw += input_mouse_x_delta() * game_state->camera_pan_sensitivity;
-        game_state->camera_pitch += input_mouse_y_delta() * game_state->camera_pan_sensitivity;
-        if (game_state->camera_pitch > 89.0) {
-            game_state->camera_pitch = 89.0;
-        }
-        if (game_state->camera_pitch < -89.0) {
-            game_state->camera_pitch = -89.0;
-        }
 
-        vec3 look_direction = GLM_VEC3_ZERO_INIT;
-        look_direction[0] = cos(glm_rad(game_state->camera_yaw)) * cos(glm_rad(game_state->camera_pitch));
-        look_direction[1] = sin(glm_rad(game_state->camera_pitch));
-        look_direction[2] = sin(glm_rad(game_state->camera_yaw)) * cos(glm_rad(game_state->camera_pitch));
-        glm_normalize(look_direction);
-        glm_vec3_copy(look_direction, game_state->camera_front);
-        
-        vec3 camera_right = GLM_VEC3_ZERO_INIT;
-        glm_vec3_cross(GLM_YUP, look_direction, camera_right);
-        glm_normalize(camera_right);
-
-        glm_vec3_cross(look_direction, camera_right, game_state->camera_up);
-        glm_normalize(game_state->camera_up);
-    }
+    camera_lookaround_update(&game_state->camera, delta);
 
     { // movement   
         f32 movement_speed = game_state->player->movement_speed * delta;
-        vec3 movement_direction = {game_state->camera_front[0], 0.0, game_state->camera_front[2]};
+        vec3 movement_direction = {game_state->camera.front[0], 0.0, game_state->camera.front[2]};
         if (input_keydown(GLFW_KEY_W)) {
             glm_vec3_muladds(
                 movement_direction,
@@ -291,10 +265,12 @@ void camera_input(GameState* game_state, RenderState* render_state, f32 delta) {
     }
 
     vec3 lookat = GLM_VEC3_ZERO_INIT;
-    glm_vec3_add(game_state->player->position, game_state->camera_front, lookat);
+    glm_vec3_add(game_state->player->position, game_state->camera.front, lookat);
 
     glm_mat4_identity(render_state->view_matrix);
-    glm_lookat(game_state->player->position, lookat, game_state->camera_up, render_state->view_matrix);
+    glm_lookat(game_state->player->position, lookat, game_state->camera.up, render_state->view_matrix);
+
+    glm_vec3_copy(game_state->player->position, game_state->camera.position);
 
     shader_bind(render_state->shader);
     shader_uniform_mat4(render_state->view_matrix_location, render_state->view_matrix);
@@ -365,7 +341,7 @@ void game_update(GameState* game_state, f32 delta) {
     }
 
     // player update:
-    game_state->player->hunger += PLAYER_HUNGER_TICK * delta;
+    //game_state->player->hunger += PLAYER_HUNGER_TICK * delta;
     if (game_state->player->hunger >= PLAYER_HUNGER_MAX) {
         game_state->game_over = true;
     }
@@ -452,9 +428,9 @@ game_paused_actions:
             game_state->player->position[0] = 0.0;
             game_state->player->position[2] = 2.0;
             
-            game_state->camera_front[0] = 0.0;
-            game_state->camera_front[1] = 0.0;
-            game_state->camera_front[2] = -1.0;
+            game_state->camera.front[0] = 0.0;
+            game_state->camera.front[1] = 0.0;
+            game_state->camera.front[2] = -1.0;
 
             game_state->score = 0;
 
@@ -537,28 +513,62 @@ game_paused_actions:
     // :timers
     if (game_state->second_timer >= 1.0) {
         log_msg("FPS: %d\n", game_state->fps);
+        log_msg("Camera front(%.2f,%.2f,%.2f)\n", game_state->camera.front[0], game_state->camera.front[1], game_state->camera.front[2]);
     }
 }
 
 void game_render(GameState* game_state, RenderState* render_state, f32 delta) {
     // shadows
     vec3 light_direction = GLM_VEC3_ZERO_INIT;
-    glm_vec3_sub(render_state->light_position, GLM_VEC3_ZERO, light_direction);
+    glm_vec3_sub(GLM_VEC3_ZERO, render_state->light_position, light_direction);
+    glm_vec3_normalize(light_direction);
+    //GL_CALL(glCullFace(GL_FRONT));
+
+    shader_bind(render_state->shadow_render.shader.handle);
+    vertexarray_bind(&render_state->shadow_render.vao);
+    framebuffer_bind(&render_state->shadow_render.fbo);
+    GL_CALL(glClear(GL_DEPTH_BUFFER_BIT));
+
+    vec3 min = GLM_VEC3_ZERO_INIT;
+    vec3 max = GLM_VEC3_ZERO_INIT;
+    calculate_bbox_for_visible_entities(game_state, min, max);
 
     {
-        GL_CALL(glClear(GL_DEPTH_BUFFER_BIT));
         ARRAYLIST_FOREACH(game_state->entities, Entity, entity) {
             if (entity->flags & EntityFlag_Render) {
-                render_shadow_entity(&render_state->shadow_render, entity, render_state->light_position, light_direction);
+                render_shadow_entity(
+                    &render_state->shadow_render, 
+                    &game_state->camera, 
+                    entity, 
+                    render_state->light_position, 
+                    render_state->view_matrix, 
+                    render_state->projection_matrix,
+                    min,
+                    max
+                );
             }
         }
-        shadowrender_flush(&render_state->shadow_render,  render_state->light_position, light_direction);
+        shadowrender_flush(
+            &render_state->shadow_render, 
+            &game_state->camera, 
+            render_state->light_position, 
+            render_state->view_matrix, 
+            render_state->projection_matrix,
+            min,
+            max
+        );
     }
-
-    shader_bind(render_state->shader);
-    //texture_bind(&texture);
+    shader_unbind();
+    vertexarray_unbind();
+    framebuffer_unbind();
+    glViewport(0, 0, window_width(), window_height());
+    //GL_CALL(glCullFace(GL_BACK));
 
     // entities
+    shader_bind(render_state->shader);
+    GL_CALL(glActiveTexture(GL_TEXTURE0));
+    texture_bind(&render_state->shadow_render.fbo.texture);
+
     ARRAYLIST_FOREACH(game_state->entities, Entity, entity) {
         if (entity->flags & EntityFlag_Render) {
             entity_render(render_state, entity);
@@ -569,8 +579,8 @@ void game_render(GameState* game_state, RenderState* render_state, f32 delta) {
     shader_unbind();
     vertexarray_unbind();
 
-    ui_texture("shadow_texture", &render_state->shadow_render.fbo.texture, (vec2){0.0, 0.0}, (vec2){0.25, 0.25});
     ui_set_framecount(game_state->update_count);
+    ui_texture("fbo_texture", &render_state->shadow_render.fbo.texture, (vec2){0.0, 0.0}, (vec2){0.5, 0.5});
     ui_render();
 }
 
@@ -655,6 +665,8 @@ boolean render_flush(RenderState* render_state, ShaderProgram shader_program) {
     shader_uniform_vec3n(render_state->colors_location, render_pipe->colors, render_pipe->entity_count);
     shader_uniform_booln(render_state->use_colors_location, render_pipe->use_colors, render_pipe->entity_count);
     shader_uniform_booln(render_state->use_textures_location, render_pipe->use_textures, render_pipe->entity_count);
+    shader_uniform_mat4(render_state->light_projection_matrix_location, render_state->shadow_render.shader.projection_matrix);
+    shader_uniform_mat4(render_state->light_view_matrix_location, render_state->shadow_render.shader.view_matrix);
 
     GL_CALL(glDrawArrays(GL_TRIANGLES, 0, render_pipe->vertex_count));
 
@@ -757,6 +769,25 @@ void spawn_obstacle(GameState* game_state, ObstacleType obstacle_type, vec3 posi
 
 f32 random_ratio(void) {
     return (float)rand() / (float)RAND_MAX;
+}
+
+void calculate_bbox_for_visible_entities(GameState* game_state, vec3 min, vec3 max) {
+    min[0] = 100000;
+    min[1] = 100000;
+    min[2] = 100000;    
+    max[0] = -100000;
+    max[1] = -100000;
+    max[2] = -100000;
+    ARRAYLIST_FOREACH(game_state->entities, Entity, entity) {
+        vec3 bbox_min;
+        vec3 bbox_max;
+        glm_vec3_sub(entity->bounding_box.center, entity->bounding_box.half_size, bbox_min);
+        glm_vec3_add(entity->bounding_box.center, entity->bounding_box.half_size, bbox_max);
+        for (int i = 0; i < 3; i++) {
+            min[i] = fmin(bbox_min[i], min[i]);
+            max[i] = fmax(bbox_max[i], max[i]);
+        }
+    }
 }
 
 

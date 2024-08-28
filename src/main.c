@@ -60,7 +60,7 @@ int main(void) {
             window_enable_cursor(mouse_enabled);
         }
         game_input(&game_state);
-        camera_input(&game_state, &render_state, elapsed_time);
+        player_movement(&game_state, &render_state, elapsed_time);
 
         // update
         if (accumulator_time > seconds_per_frame) {
