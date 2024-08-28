@@ -17,6 +17,9 @@
         "vertexarray.h": "c",
         "shaderprogram.h": "c",
         "initializer_list": "c",
-        "string.h": "c"
+        "string.h": "c",
+        "deque": "c",
+        "vector": "c",
+        "span": "c"
     }
 }

@@ -60,7 +60,7 @@ int main(void) {
             window_enable_cursor(mouse_enabled);
         }
         game_input(&game_state);
-        camera_input(&game_state, &render_state, elapsed_time);
+        player_movement(&game_state, &render_state, elapsed_time);
 
         // update
         if (accumulator_time > seconds_per_frame) {
@@ -90,7 +90,7 @@ cleanup:
     shader_destroy(render_state.shader);
     renderpipe_destroy(&render_state.render_pipe);
     ui_destroy();
-    texture_destroy(&game_state.test_texture);
+    shadowrender_destroy(&render_state.shadow_render);
     window_destroy();
 
     return 0;
