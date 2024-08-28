@@ -26,12 +26,12 @@ float shadow_calculation(vec4 frag_pos_light_space, vec3 normal, vec3 light_dire
     // get depth of current fragment from light's perspective
     float current_depth = proj_coords.z;
 
-    float bias = 0.002;
-    //float bias = max(0.05 * (1.0 - dot(light_direction, normal)), 0.005);  
+    float bias = 0.0003;
+    //float bias = max(0.004 * (1.0 - dot(light_direction, normal)), 0.002);  
 
     float shadow = 0.0;
     vec2 texel_size = 1.0 / textureSize(shadow_depthmap, 0);
-    int pcf_count = 2;
+    int pcf_count = 1;
     for(int x = -pcf_count; x <= pcf_count; ++x) {
         for(int y = -pcf_count; y <= pcf_count; ++y) {
             float pcf_depth = texture(shadow_depthmap, proj_coords.xy + vec2(x, y) * texel_size).r; 
@@ -61,5 +61,5 @@ void main() {
 
     float shadow = shadow_calculation(frag_position_light_space, normal, light_direction);
     
-    FragColor = object_color * vec4(ambient + (1.0 - shadow) + diffuse, 1.0);
+    FragColor = object_color * vec4(ambient + (1.0 - shadow) * diffuse, 1.0);
 }

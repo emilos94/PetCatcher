@@ -8,7 +8,5 @@ flat in int pass_texture_index;
 uniform sampler2D textures[16];
 
 void main() {
-    //FragColor = vec4(pass_color, 1.0) * texture(textures[pass_texture_index], pass_uv);
-    float depthValue = texture(textures[pass_texture_index], pass_uv).x;
-    FragColor = vec4(vec3(depthValue), 1.0);
+    FragColor = vec4(pass_color, 1.0) * texture(textures[pass_texture_index], pass_uv);
 }

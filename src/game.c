@@ -522,7 +522,7 @@ void game_render(GameState* game_state, RenderState* render_state, f32 delta) {
     vec3 light_direction = GLM_VEC3_ZERO_INIT;
     glm_vec3_sub(GLM_VEC3_ZERO, render_state->light_position, light_direction);
     glm_vec3_normalize(light_direction);
-    //GL_CALL(glCullFace(GL_FRONT));
+    GL_CALL(glCullFace(GL_FRONT));
 
     shader_bind(render_state->shadow_render.shader.handle);
     vertexarray_bind(&render_state->shadow_render.vao);
@@ -562,7 +562,7 @@ void game_render(GameState* game_state, RenderState* render_state, f32 delta) {
     vertexarray_unbind();
     framebuffer_unbind();
     glViewport(0, 0, window_width(), window_height());
-    //GL_CALL(glCullFace(GL_BACK));
+    GL_CALL(glCullFace(GL_BACK));
 
     // entities
     shader_bind(render_state->shader);
@@ -580,7 +580,6 @@ void game_render(GameState* game_state, RenderState* render_state, f32 delta) {
     vertexarray_unbind();
 
     ui_set_framecount(game_state->update_count);
-    ui_texture("fbo_texture", &render_state->shadow_render.fbo.texture, (vec2){0.0, 0.0}, (vec2){0.5, 0.5});
     ui_render();
 }
 
