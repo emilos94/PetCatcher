@@ -439,10 +439,12 @@ boolean file_loadcollada(ColladaData* collada_data, char* path) {
 
 				{ // Set mesh material
 					String* material_name = xmlnode_attribute(triangles_node, "material");
-					for(int i = 0; i < materials_count; i++) {
-						MaterialEffect* material = material_effects + i;
-						if (string_equals(material->material_name, *material_name)) {
-							glm_vec3_copy(material->color, mesh->color);
+					if (material_name) {
+						for(int i = 0; i < materials_count; i++) {
+							MaterialEffect* material = material_effects + i;
+							if (string_equals(material->material_name, *material_name)) {
+								glm_vec3_copy(material->color, mesh->color);
+							}
 						}
 					}
 				}

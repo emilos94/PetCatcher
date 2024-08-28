@@ -114,7 +114,7 @@ boolean gamestate_init(GameState* game_state) {
     }
 
     { // :assets
-        if (!game_loadmap(game_state, "../res/maps/ground_cube.dae")) {
+        if (!game_loadmap(game_state, "../res/maps/map01.dae")) {
             return false;
         }
 
@@ -137,6 +137,8 @@ boolean gamestate_init(GameState* game_state) {
         game_state->score = 0;
         game_state->second_timer = 0.0;
         game_state->fps = 0;
+        game_state->player_lane = 1;
+        game_state->player_moving = false;
     }
 
     { // :spawn 
@@ -182,6 +184,15 @@ boolean game_loadmap(GameState* game_state, char* path) {
             game_state->ground_box = entity->bounding_box;
             game_state->ground_height = entity->bounding_box.center[1] + entity->bounding_box.half_size[1];
         }
+        else if (string_equals_lit(mesh->name, "poi_spawn_left")) {
+            glm_vec3_copy(entity->position, game_state->spawn_point_left);
+        }
+        else if (string_equals_lit(mesh->name, "poi_spawn_middle")) {
+            glm_vec3_copy(entity->position, game_state->spawn_point_middle);
+        }
+        else if (string_equals_lit(mesh->name, "poi_spawn_right")) {
+            glm_vec3_copy(entity->position, game_state->spawn_point_right);
+        }
 
         glm_vec3_fill(entity->rotation, 0.0);
         
@@ -204,7 +215,7 @@ void player_movement(GameState* game_state, RenderState* render_state, f32 delta
     { // movement   
         f32 movement_speed = game_state->player->movement_speed * delta;
         vec3 movement_direction = {game_state->camera.front[0], 0.0, game_state->camera.front[2]};
-        if (input_keydown(GLFW_KEY_W)) {
+        if (0 && input_keydown(GLFW_KEY_W)) {
             glm_vec3_muladds(
                 movement_direction,
                 movement_speed,
@@ -212,7 +223,7 @@ void player_movement(GameState* game_state, RenderState* render_state, f32 delta
             );
         }
         
-        if (input_keydown(GLFW_KEY_S)) {
+        if (0 && input_keydown(GLFW_KEY_S)) {
             glm_vec3_mulsubs(
                 movement_direction,
                 movement_speed,
@@ -221,27 +232,17 @@ void player_movement(GameState* game_state, RenderState* render_state, f32 delta
         }    
 
         if (input_keydown(GLFW_KEY_A)) {
-            vec3 delta = GLM_VEC3_ZERO_INIT;
-            glm_vec3_cross(movement_direction, GLM_YUP, delta);
-            glm_vec3_normalize(delta);
-
-            glm_vec3_mulsubs(
-                delta,
-                movement_speed,
-                game_state->player->position
-            );
+            if (!game_state->player_moving && game_state->player_lane > 0) {
+                game_state->player_lane--;
+                game_state->player_moving = true;
+            }
         }  
 
         if (input_keydown(GLFW_KEY_D)) {
-            vec3 delta = GLM_VEC3_ZERO_INIT;
-            glm_vec3_cross(movement_direction, GLM_YUP, delta);
-            glm_vec3_normalize(delta);
-
-            glm_vec3_muladds(
-                delta,
-                movement_speed,
-                game_state->player->position
-            );
+            if (!game_state->player_moving && game_state->player_lane < 2) {
+                game_state->player_lane++;
+                game_state->player_moving = true;
+            }
         }
     }
     
@@ -340,10 +341,34 @@ void game_update(GameState* game_state, f32 delta) {
 
     }
 
-    // player update:
+    // :player_update
     //game_state->player->hunger += PLAYER_HUNGER_TICK * delta;
     if (game_state->player->hunger >= PLAYER_HUNGER_MAX) {
         game_state->game_over = true;
+    }
+
+    if (game_state->player_moving) {
+        f32 target = 0.0;
+        switch (game_state->player_lane)
+        {
+        case 0:
+            target = game_state->spawn_point_left[2];
+            break;
+        case 1:
+            target = game_state->spawn_point_middle[2];
+            break;
+        case 2:
+            target = game_state->spawn_point_right[2];
+            break;
+        default:
+            log_msg("Player lane incorrect!!\n");
+            assert(false);
+            break;
+        }
+        boolean reached = animate_f32_to_target(&game_state->player->position[2], target, delta, 15.0);
+        if (reached) {
+            game_state->player_moving = false;
+        }
     }
 
     ARRAYLIST_FOREACHI(game_state->entities, i, Entity, e) {

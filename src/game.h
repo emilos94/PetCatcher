@@ -35,6 +35,8 @@ struct GameState {
     // entities
     ArrayList entities;
     Entity* player;
+    u32 player_lane;
+    boolean player_moving;
 
     // world
     f32 ground_height, gravity;
@@ -49,6 +51,9 @@ struct GameState {
     ColladaData boulder_data;
 
     Boundingbox ground_box;
+    vec3 spawn_point_left;
+    vec3 spawn_point_middle;
+    vec3 spawn_point_right;
 
     // fruit spawning
     f32 fruit_spawn_timer, fruit_spawn_interval;
