@@ -56,12 +56,14 @@ struct GameState {
     vec3 spawn_point_left;
     vec3 spawn_point_middle;
     vec3 spawn_point_right;
+    vec3 delete_point;
 
-    // fruit spawning
-    f32 fruit_spawn_timer, fruit_spawn_interval;
-
-    // obstacle spawning
-    f32 obstacle_spawn_timer, obstacle_spawn_interval;
+    // spawning
+    f32 last_spawn_time, spawn_timer, spawn_delay_per_entity, spawn_time_delay;
+    u32 spawn_count, spawn_max;
+    int current_spawn_lane;
+    boolean spawning;
+    EntityTag entity_to_spawn;
 
     // misc
     f32 second_timer;

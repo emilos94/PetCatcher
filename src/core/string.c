@@ -109,6 +109,17 @@ void string_tointarray(String str, int** out, char delimiter, u32 count) {
     *out = result;
 }
 
+boolean string_startswith(String str, char* literal) {
+    int literal_length = strlen(literal);
+    for (int i = 0; i < min_i(literal_length, str.length); i++) {
+        if (str.chars[i] != literal[i]) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 boolean string_chars_startswith(char* source, char* literal) {
     int literal_length = strlen(literal);
 

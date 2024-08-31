@@ -53,3 +53,17 @@ f32 f32_clamp(f32 value, f32 min, f32 max) {
 
     return result;
 }
+
+u32 rand_u32_between(u32 min, u32 max) {
+    u32 result = rand() % (max - min + 1) + min;
+    return result;
+}
+
+
+int min_i(int a, int b) {
+    if (a < b) {
+        return a;
+    }
+
+    return b;
+}
