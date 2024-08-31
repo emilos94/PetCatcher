@@ -25,6 +25,7 @@ void spawn_obstacle(GameState* game_state, ObstacleType obstacle_type, vec3 posi
 f32 random_ratio(void);
 boolean entity_queued_for_deletion(Entity* e);
 void calculate_bbox_for_visible_entities(GameState* game_state, vec3 min, vec3 max);
+vec3s spawnpoint_by_lane(GameState* state, u32 lane);
 
 boolean renderstate_init(RenderState* render_state) {
     if (!shader_initialise(&render_state->shader, "shaders/vert.txt", "shaders/frag.txt")) {
@@ -128,7 +129,7 @@ boolean gamestate_init(GameState* game_state) {
     }
 
     { // :camera
-        camera_init(&game_state->camera, game_state->player->position, (vec3){0.0, 0.0, 1.0}, (vec3){0.0, 1.0, 0.0}, 5.0, 0.02);
+        camera_init(&game_state->camera, game_state->player->position, (vec3){1.0, 0.0, 0.0}, (vec3){0.0, 1.0, 0.0}, 5.0, 0.02);
     }
 
     { // :constants
@@ -138,7 +139,10 @@ boolean gamestate_init(GameState* game_state) {
         game_state->second_timer = 0.0;
         game_state->fps = 0;
         game_state->player_lane = 1;
+        game_state->player_lane_prev = 1;
         game_state->player_moving = false;
+        game_state->player_move_time_total = 0.4;
+        game_state->player_move_timer = 0.0;
     }
 
     { // :spawn 
@@ -210,37 +214,23 @@ void player_movement(GameState* game_state, RenderState* render_state, f32 delta
         return;
     }
 
-    camera_lookaround_update(&game_state->camera, delta);
+    //camera_lookaround_update(&game_state->camera, delta);
 
     { // movement   
-        f32 movement_speed = game_state->player->movement_speed * delta;
-        vec3 movement_direction = {game_state->camera.front[0], 0.0, game_state->camera.front[2]};
-        if (0 && input_keydown(GLFW_KEY_W)) {
-            glm_vec3_muladds(
-                movement_direction,
-                movement_speed,
-                game_state->player->position
-            );
-        }
-        
-        if (0 && input_keydown(GLFW_KEY_S)) {
-            glm_vec3_mulsubs(
-                movement_direction,
-                movement_speed,
-                game_state->player->position
-            );
-        }    
-
         if (input_keydown(GLFW_KEY_A)) {
             if (!game_state->player_moving && game_state->player_lane > 0) {
+                game_state->player_lane_prev = game_state->player_lane;
                 game_state->player_lane--;
+                game_state->player_move_timer = 0.0;
                 game_state->player_moving = true;
             }
         }  
 
         if (input_keydown(GLFW_KEY_D)) {
             if (!game_state->player_moving && game_state->player_lane < 2) {
+                game_state->player_lane_prev = game_state->player_lane;
                 game_state->player_lane++;
+                game_state->player_move_timer = 0.0;
                 game_state->player_moving = true;
             }
         }
@@ -348,26 +338,20 @@ void game_update(GameState* game_state, f32 delta) {
     }
 
     if (game_state->player_moving) {
-        f32 target = 0.0;
-        switch (game_state->player_lane)
-        {
-        case 0:
-            target = game_state->spawn_point_left[2];
-            break;
-        case 1:
-            target = game_state->spawn_point_middle[2];
-            break;
-        case 2:
-            target = game_state->spawn_point_right[2];
-            break;
-        default:
-            log_msg("Player lane incorrect!!\n");
-            assert(false);
-            break;
-        }
-        boolean reached = animate_f32_to_target(&game_state->player->position[2], target, delta, 15.0);
+        vec3s target_lane = spawnpoint_by_lane(game_state, game_state->player_lane);
+        vec3s from_lane = spawnpoint_by_lane(game_state, game_state->player_lane_prev);
+
+        boolean reached = animate_f32_lerp(
+            &game_state->player->position[2], 
+            from_lane.z, 
+            target_lane.z, 
+            f32_ease_out_back(game_state->player_move_timer / game_state->player_move_time_total)
+        );
+        game_state->player_move_timer += delta;
+
         if (reached) {
-            game_state->player_moving = false;
+            game_state->player_moving = false;        
+            game_state->player_move_timer = 0.0;
         }
     }
 
@@ -812,6 +796,27 @@ void calculate_bbox_for_visible_entities(GameState* game_state, vec3 min, vec3 m
             max[i] = fmax(bbox_max[i], max[i]);
         }
     }
+}
+
+vec3s spawnpoint_by_lane(GameState* state, u32 lane) {
+    vec3s result = GLM_VEC3_ZERO_INIT;
+    switch (lane)
+    {
+    case 0:
+        result = (vec3s){state->spawn_point_left[0],state->spawn_point_left[1],state->spawn_point_left[2]};
+        break;
+    case 1:
+        result = (vec3s){state->spawn_point_middle[0],state->spawn_point_middle[1],state->spawn_point_middle[2]};
+        break;
+    case 2:
+        result = (vec3s){state->spawn_point_right[0],state->spawn_point_right[1],state->spawn_point_right[2]};
+        break;
+    default:
+        log_msg("Incorrect lane!!\n");
+        assert(false);
+        break;
+    }
+    return result;
 }
 
 

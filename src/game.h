@@ -35,7 +35,9 @@ struct GameState {
     // entities
     ArrayList entities;
     Entity* player;
-    u32 player_lane;
+
+    f32 player_move_timer, player_move_time_total;
+    u32 player_lane, player_lane_prev;
     boolean player_moving;
 
     // world

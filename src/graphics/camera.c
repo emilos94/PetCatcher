@@ -8,7 +8,7 @@ void camera_init(Camera* camera, vec3 position, vec3 front, vec3 up, f32 pan_spe
 
     camera->panning_speed = 5.0;
     camera->pan_sensitivity = 0.02;
-    camera->yaw = -90.0;
+    camera->yaw = 90.0;
     camera->pitch = 0.0;
 }
 
