@@ -19,7 +19,8 @@ enum EntityFlags {
     EntityFlag_UseColor = 1 << 1,
     EntityFlag_UseTexture = 1 << 2,
     EntityFlag_Collider = 1 << 3,
-    EntityFlag_RigidBody = 1 << 4
+    EntityFlag_RigidBody = 1 << 4,
+    EntityFlag_MoveToPlayer = 1 << 5
 };
 typedef u32 EntityFlags;
 
@@ -69,6 +70,11 @@ struct Entity {
 
     // shared
     int health;
+
+    // move to player velocity
+    f32 x_velocity;
+    f32 x_velocity_acceleration_time;
+    f32 time_since_spawn;
 };
 typedef struct Entity Entity;
 

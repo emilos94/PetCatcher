@@ -20,6 +20,7 @@
         "string.h": "c",
         "deque": "c",
         "vector": "c",
-        "span": "c"
+        "span": "c",
+        "sstream": "c"
     }
 }

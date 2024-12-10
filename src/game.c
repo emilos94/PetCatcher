@@ -25,6 +25,7 @@ void spawn_obstacle(GameState* game_state, ObstacleType obstacle_type, vec3 posi
 f32 random_ratio(void);
 boolean entity_queued_for_deletion(Entity* e);
 void calculate_bbox_for_visible_entities(GameState* game_state, vec3 min, vec3 max);
+vec3s spawnpoint_by_lane(GameState* state, u32 lane);
 
 boolean renderstate_init(RenderState* render_state) {
     if (!shader_initialise(&render_state->shader, "shaders/vert.txt", "shaders/frag.txt")) {
@@ -114,7 +115,7 @@ boolean gamestate_init(GameState* game_state) {
     }
 
     { // :assets
-        if (!game_loadmap(game_state, "../res/maps/ground_cube.dae")) {
+        if (!game_loadmap(game_state, "../res/maps/map01.dae")) {
             return false;
         }
 
@@ -128,7 +129,7 @@ boolean gamestate_init(GameState* game_state) {
     }
 
     { // :camera
-        camera_init(&game_state->camera, game_state->player->position, (vec3){0.0, 0.0, 1.0}, (vec3){0.0, 1.0, 0.0}, 5.0, 0.02);
+        camera_init(&game_state->camera, game_state->player->position, (vec3){1.0, 0.0, 0.0}, (vec3){0.0, 1.0, 0.0}, 5.0, 0.02);
     }
 
     { // :constants
@@ -137,14 +138,19 @@ boolean gamestate_init(GameState* game_state) {
         game_state->score = 0;
         game_state->second_timer = 0.0;
         game_state->fps = 0;
+        game_state->player_lane = 1;
+        game_state->player_lane_prev = 1;
+        game_state->player_moving = false;
+        game_state->player_move_time_total = 0.4;
+        game_state->player_move_timer = 0.0;
     }
 
-    { // :spawn 
-        game_state->fruit_spawn_timer = 0.0;
-        game_state->fruit_spawn_interval = 2.0;
-
-        game_state->obstacle_spawn_timer = 0.0;
-        game_state->obstacle_spawn_interval = 5.0;
+    { // :spawn
+        game_state->spawn_count = 0;
+        game_state->spawn_delay_per_entity = 0.0;
+        game_state->last_spawn_time = 0.0;
+        game_state->spawn_timer = 0.0;
+        game_state->spawn_time_delay = 2.0;
     }
 
     game_state->paused = false;
@@ -162,6 +168,29 @@ boolean game_loadmap(GameState* game_state, char* path) {
 
     for (int i = 0; i < game_state->map_data.mesh_count; i++) {
         Mesh* mesh = game_state->map_data.meshes + i;
+
+        if (string_startswith(mesh->name, "poi")) {
+            vec3 position = {
+                mesh->transform[3],
+                mesh->transform[7],
+                mesh->transform[11]
+            };
+
+            if (string_equals_lit(mesh->name, "poi_spawn_left")) {
+                glm_vec3_copy(position, game_state->spawn_point_left);
+            }
+            else if (string_equals_lit(mesh->name, "poi_spawn_middle")) {
+                glm_vec3_copy(position, game_state->spawn_point_middle);
+            }
+            else if (string_equals_lit(mesh->name, "poi_spawn_right")) {
+                glm_vec3_copy(position, game_state->spawn_point_right);
+            }
+            else if (string_equals_lit(mesh->name, "poi_delete_point")) {
+                glm_vec3_copy(position, game_state->delete_point);
+            }
+
+            continue;
+        }
 
         Entity* entity = arraylist_push(&game_state->entities);
 
@@ -199,49 +228,25 @@ void player_movement(GameState* game_state, RenderState* render_state, f32 delta
         return;
     }
 
-    camera_lookaround_update(&game_state->camera, delta);
+    //camera_lookaround_update(&game_state->camera, delta);
 
     { // movement   
-        f32 movement_speed = game_state->player->movement_speed * delta;
-        vec3 movement_direction = {game_state->camera.front[0], 0.0, game_state->camera.front[2]};
-        if (input_keydown(GLFW_KEY_W)) {
-            glm_vec3_muladds(
-                movement_direction,
-                movement_speed,
-                game_state->player->position
-            );
-        }
-        
-        if (input_keydown(GLFW_KEY_S)) {
-            glm_vec3_mulsubs(
-                movement_direction,
-                movement_speed,
-                game_state->player->position
-            );
-        }    
-
         if (input_keydown(GLFW_KEY_A)) {
-            vec3 delta = GLM_VEC3_ZERO_INIT;
-            glm_vec3_cross(movement_direction, GLM_YUP, delta);
-            glm_vec3_normalize(delta);
-
-            glm_vec3_mulsubs(
-                delta,
-                movement_speed,
-                game_state->player->position
-            );
+            if (!game_state->player_moving && game_state->player_lane > 0) {
+                game_state->player_lane_prev = game_state->player_lane;
+                game_state->player_lane--;
+                game_state->player_move_timer = 0.0;
+                game_state->player_moving = true;
+            }
         }  
 
         if (input_keydown(GLFW_KEY_D)) {
-            vec3 delta = GLM_VEC3_ZERO_INIT;
-            glm_vec3_cross(movement_direction, GLM_YUP, delta);
-            glm_vec3_normalize(delta);
-
-            glm_vec3_muladds(
-                delta,
-                movement_speed,
-                game_state->player->position
-            );
+            if (!game_state->player_moving && game_state->player_lane < 2) {
+                game_state->player_lane_prev = game_state->player_lane;
+                game_state->player_lane++;
+                game_state->player_move_timer = 0.0;
+                game_state->player_moving = true;
+            }
         }
     }
     
@@ -338,12 +343,41 @@ void game_update(GameState* game_state, f32 delta) {
             }
         }
 
+        // :move to player
+        if (entity->flags & EntityFlag_MoveToPlayer) {
+            f32 max_velocity = 30.0;
+            animate_f32_lerp(&entity->x_velocity, 0.0, max_velocity, f32_ease_out_back(entity->time_since_spawn / entity->x_velocity_acceleration_time));
+            entity->time_since_spawn += delta;
+
+            entity->position[0] -= entity->x_velocity * delta;
+
+            if (entity->position[0] <= game_state->delete_point[0]) {
+                entity->queue_delete = true;
+            }
+        }
     }
 
-    // player update:
-    //game_state->player->hunger += PLAYER_HUNGER_TICK * delta;
+    // :player_update
     if (game_state->player->hunger >= PLAYER_HUNGER_MAX) {
         game_state->game_over = true;
+    }
+
+    if (game_state->player_moving) {
+        vec3s target_lane = spawnpoint_by_lane(game_state, game_state->player_lane);
+        vec3s from_lane = spawnpoint_by_lane(game_state, game_state->player_lane_prev);
+
+        boolean reached = animate_f32_lerp(
+            &game_state->player->position[2], 
+            from_lane.z, 
+            target_lane.z, 
+            f32_ease_out_back(game_state->player_move_timer / game_state->player_move_time_total)
+        );
+        game_state->player_move_timer += delta;
+
+        if (reached) {
+            game_state->player_moving = false;        
+            game_state->player_move_timer = 0.0;
+        }
     }
 
     ARRAYLIST_FOREACHI(game_state->entities, i, Entity, e) {
@@ -361,42 +395,61 @@ void game_update(GameState* game_state, f32 delta) {
         }
     }
     
-    // :spawn fruit
-    game_state->fruit_spawn_timer += delta; 
-    if (game_state->fruit_spawn_timer >= game_state->fruit_spawn_interval) {
-        f32 ratio_x = random_ratio();
-        f32 ratio_z = random_ratio();
+    // :spawn
+    game_state->spawn_timer += delta;
+    if (game_state->spawn_timer >= game_state->spawn_time_delay && !game_state->spawning) {
+        game_state->spawning = true;
+        game_state->spawn_timer = 0.0;
+        game_state->last_spawn_time = 0.0;
+        game_state->spawn_count = 0;
 
-        f32 x_pos = game_state->ground_box.half_size[0] * 2.0 * ratio_x - game_state->ground_box.half_size[0];
-        f32 z_pos = game_state->ground_box.half_size[2] * 2.0 * ratio_z - game_state->ground_box.half_size[2];
-
-        spawn_fruit(game_state, FruitType_Apple, (vec3){x_pos, FRUIT_SPAWN_HEIGHT, z_pos});
-
-        game_state->fruit_spawn_timer -= game_state->fruit_spawn_interval;
-    }
-    
-    // :spawn obstacle
-    game_state->obstacle_spawn_timer += delta; 
-    if (game_state->obstacle_spawn_timer >= game_state->obstacle_spawn_interval) {
-        f32 ratio_x = random_ratio();
-        f32 ratio_z = random_ratio();
-
-        f32 x_pos = game_state->ground_box.half_size[0] * 2.0 * ratio_x - game_state->ground_box.half_size[0];
-        f32 z_pos = game_state->ground_box.half_size[2] * 2.0 * ratio_z - game_state->ground_box.half_size[2];
-
-        spawn_obstacle(game_state, ObstacleType_Boulder, (vec3){x_pos, OBSTACLE_SPAWN_HEIGHT, z_pos});
-
-        game_state->obstacle_spawn_timer -= game_state->obstacle_spawn_interval;
+        u32 spawn_rand = rand_u32_between(0, 10);
+        if (spawn_rand < 8) {
+            game_state->entity_to_spawn = EntityTag_Fruit;
+            game_state->spawn_max = rand_u32_between(3, 6);
+            game_state->spawn_delay_per_entity = 0.5;
+        }
+        else {
+            game_state->entity_to_spawn = EntityTag_Obstacle;
+            game_state->spawn_max = 1;
+        }
     }
 
-    if (input_keydown(GLFW_KEY_LEFT_CONTROL) && input_keyjustdown(GLFW_KEY_DOWN)) {
-        font_size -= 0.005;
-    }
-    
-    if (input_keydown(GLFW_KEY_LEFT_CONTROL) && input_keyjustdown(GLFW_KEY_UP)) {
-        font_size += 0.005;
-    }
+    if (game_state->spawning) {
+        game_state->last_spawn_time += delta;
+        if (game_state->current_spawn_lane == -1) {
+            game_state->current_spawn_lane = rand_u32_between(0, 2);
+        }
+        if (game_state->last_spawn_time >= game_state->spawn_delay_per_entity) {
+            game_state->spawn_count++;
+            game_state->last_spawn_time = 0.0;
 
+            vec3s spawn_point = spawnpoint_by_lane(game_state, game_state->current_spawn_lane);
+
+            switch (game_state->entity_to_spawn) 
+            {
+            case EntityTag_Fruit:
+                spawn_fruit(game_state, FruitType_Apple, (vec3){spawn_point.x, spawn_point.y, spawn_point.z});
+                break;
+            case EntityTag_Obstacle:
+                spawn_obstacle(game_state, ObstacleType_Boulder, (vec3){spawn_point.x, spawn_point.y, spawn_point.z});
+                break;
+            default:
+                log_msg("Invalid spawn tag!\n");
+                assert(false);
+                break;
+            }
+
+            if (game_state->spawn_count >= game_state->spawn_max) {
+                game_state->spawning = false;
+                game_state->spawn_timer = 0.0;
+                game_state->last_spawn_time = 0.0;
+                game_state->spawn_timer = 0.0;
+                game_state->spawn_count = 0;
+                game_state->current_spawn_lane = -1;
+            }
+        }
+    }
 
 game_paused_actions:
     game_state->update_count++;
@@ -704,6 +757,7 @@ boolean aabb_aabb_collision(Boundingbox* either, Boundingbox* other) {
 void spawn_fruit(GameState* game_state, FruitType fruit_type, vec3 position) {
         u32 index = game_state->entities.element_count;
         Entity* fruit = arraylist_push(&game_state->entities);
+        memset(fruit, 0, sizeof(Entity));
         fruit->list_index = index;
         glm_vec3_copy(position, fruit->position);
 
@@ -727,9 +781,10 @@ void spawn_fruit(GameState* game_state, FruitType fruit_type, vec3 position) {
         glm_vec3_copy(fruit->scale, fruit->bounding_box.half_size);
         glm_vec3_scale(fruit->bounding_box.half_size, 1.5, fruit->bounding_box.half_size);
         
-        fruit->flags = EntityFlag_Render | EntityFlag_UseColor | EntityFlag_Collider | EntityFlag_RigidBody;
-        fruit->in_air = true;
-        fruit->y_velocity = 0.0;
+        fruit->flags = EntityFlag_Render | EntityFlag_UseColor | EntityFlag_Collider | EntityFlag_MoveToPlayer;
+        fruit->x_velocity = 0.0;
+        fruit->x_velocity_acceleration_time = 0.5;
+        fruit->time_since_spawn = 0.0;
         fruit->tag = EntityTag_Fruit;
 }
 
@@ -737,6 +792,7 @@ void spawn_fruit(GameState* game_state, FruitType fruit_type, vec3 position) {
 void spawn_obstacle(GameState* game_state, ObstacleType obstacle_type, vec3 position) {
         u32 index = game_state->entities.element_count;
         Entity* obstacle = arraylist_push(&game_state->entities);
+        memset(obstacle, 0, sizeof(Entity));
         obstacle->list_index = index;
         glm_vec3_copy(position, obstacle->position);
 
@@ -759,9 +815,10 @@ void spawn_obstacle(GameState* game_state, ObstacleType obstacle_type, vec3 posi
         glm_vec3_copy(obstacle->scale, obstacle->bounding_box.half_size);
         glm_vec3_scale(obstacle->bounding_box.half_size, 1.0, obstacle->bounding_box.half_size);
         
-        obstacle->flags = EntityFlag_Render | EntityFlag_UseColor | EntityFlag_Collider | EntityFlag_RigidBody;
-        obstacle->in_air = true;
-        obstacle->y_velocity = 0.0;
+        obstacle->flags = EntityFlag_Render | EntityFlag_UseColor | EntityFlag_Collider | EntityFlag_MoveToPlayer;
+        obstacle->x_velocity = 0.0;
+        obstacle->x_velocity_acceleration_time = 0.5;
+        obstacle->time_since_spawn = 0.0;
         obstacle->tag = EntityTag_Obstacle;
 }
 
@@ -787,6 +844,27 @@ void calculate_bbox_for_visible_entities(GameState* game_state, vec3 min, vec3 m
             max[i] = fmax(bbox_max[i], max[i]);
         }
     }
+}
+
+vec3s spawnpoint_by_lane(GameState* state, u32 lane) {
+    vec3s result = GLM_VEC3_ZERO_INIT;
+    switch (lane)
+    {
+    case 0:
+        result = (vec3s){state->spawn_point_left[0],state->spawn_point_left[1],state->spawn_point_left[2]};
+        break;
+    case 1:
+        result = (vec3s){state->spawn_point_middle[0],state->spawn_point_middle[1],state->spawn_point_middle[2]};
+        break;
+    case 2:
+        result = (vec3s){state->spawn_point_right[0],state->spawn_point_right[1],state->spawn_point_right[2]};
+        break;
+    default:
+        log_msg("Incorrect lane!!\n");
+        assert(false);
+        break;
+    }
+    return result;
 }
 
 
